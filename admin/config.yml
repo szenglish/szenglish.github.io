@@ -25,7 +25,7 @@ collections:
     folder: /content/news
     format: json
     create: true
-    slug: "{{year}}{{month}}{{day}}-{{uuid_shorter}}"
+    slug: "{{year}}{{month}}{{day}}"
     identifier_field: title
     summary: "{{date}}｜{{title}}"
     sortable_fields: [date, title]
@@ -54,11 +54,15 @@ collections:
         fields:
           - { name: images, label: 照片, widget: image, multiple: true }
           - { name: caption, label: 照片說明, widget: text, required: false }
-      - name: published
-        label: 公開這篇文章
-        widget: boolean
-        default: true
-        hint: 關閉後文章會保留在後台，但不會顯示在網站上。
+      - name: visibility
+        label: 顯示方式
+        widget: select
+        default: public
+        options:
+          - { label: 公開, value: public }
+          - { label: 不公開連結（列表不顯示，知道網址才打得開）, value: unlisted }
+          - { label: 草稿（網站上打不開）, value: draft }
+        hint: 不公開連結和草稿都不是真正的保密，個資或機密內容不要放進來。
       - name: excerpt
         label: 列表摘要
         widget: text

@@ -12,6 +12,11 @@
     });
   }
 
+  // 「不公開連結」的文章不出現在列表和上下篇，但知道網址仍可打開。
+  function listed(news) {
+    return news.filter(function (item) { return !item.unlisted; });
+  }
+
   function leadStory(item, className) {
     return el("a", { class: className, href: S.articleUrl(item) }, [
       el("div", { class: "lead-image" }, [S.coverImage(item)]),
@@ -87,7 +92,7 @@
     var target = document.getElementById("latest-news");
     var eventsTarget = document.getElementById("recent-events");
     S.loadData(function (data) {
-      var news = data.news;
+      var news = listed(data.news);
       var term = currentTerm(data.members);
       if (term) document.getElementById("hero-term").textContent = "第 " + term + " 屆";
       replace(eventsTarget, data.events.length
@@ -151,7 +156,7 @@
     }
 
     S.loadData(function (data) {
-      all = data.news;
+      all = listed(data.news);
       drawFilter();
       draw();
     }, function () {
@@ -193,8 +198,13 @@
         ]);
       }
       var item = news[index];
-      var newer = news[index - 1];
-      var older = news[index + 1];
+      var public_ = listed(news);
+      var position = public_.indexOf(item);
+      var newer = position > 0 ? public_[position - 1] : null;
+      var older = position >= 0 ? public_[position + 1] : null;
+      if (item.unlisted) {
+        document.head.appendChild(el("meta", { name: "robots", content: "noindex" }));
+      }
       document.title = item.title + "｜應用英語科學會";
 
       replace(target, [
@@ -562,10 +572,55 @@
     });
   }
 
+  // 評鑑專區：把幹部、活動和文件整理在同一頁，資料和網站其他頁面共用。
+  function renderEvaluation() {
+    var updateSubNav = setupSubNav();
+    var organization = document.getElementById("organization-list");
+    var activities = document.getElementById("activity-list");
+
+    S.loadData(function (data) {
+      var term = currentTerm(data.members);
+      if (term) document.getElementById("evaluation-term").textContent = "第 " + term + " 屆應用英語科學會 成果展示";
+
+      var rows = data.members.filter(function (member) {
+        return Number(member.term) === term;
+      }).map(function (member) {
+        return el("tr", {}, [
+          el("td", { text: member.dept }),
+          el("td", { text: member.title }),
+          el("td", { text: member.name })
+        ]);
+      });
+      replace(organization, rows.length ? [
+        el("div", { class: "org-table-wrap" }, [
+          el("table", { class: "org-table" }, [
+            el("thead", {}, [el("tr", {}, [
+              el("th", { scope: "col", text: "單位" }),
+              el("th", { scope: "col", text: "職稱" }),
+              el("th", { scope: "col", text: "姓名" })
+            ])]),
+            el("tbody", {}, rows)
+          ])
+        ])
+      ] : [S.statusMessage("目前還沒有幹部資料。")]);
+
+      var news = listed(data.news);
+      replace(activities, news.length
+        ? [el("div", { class: "card-grid evaluation-cards" }, news.map(card))]
+        : [S.statusMessage("目前還沒有活動報導。")]);
+      updateSubNav();
+    }, function () {
+      replace(organization, [S.statusMessage(LOAD_ERROR)]);
+      replace(activities, [S.statusMessage(LOAD_ERROR)]);
+    });
+    renderDocuments();
+  }
+
   var page = document.body.getAttribute("data-page");
   if (page === "home") renderHome();
   if (page === "about") renderAbout();
   if (page === "documents") renderDocuments();
+  if (page === "evaluation") renderEvaluation();
   if (page === "contact") renderFeedback();
   if (page === "news") renderNews();
   if (page === "article") renderArticle();

@@ -81,7 +81,8 @@ def excerpt_from(body):
 def build_news():
     news = []
     for entry in load_entries("news"):
-        if entry.get("published") is False:
+        visibility = entry.get("visibility") or ("draft" if entry.get("published") is False else "public")
+        if visibility == "draft":
             continue
         if not entry.get("title") or not entry.get("date"):
             print(f"略過新聞 {entry['id']}：缺少標題或日期", file=sys.stderr)
@@ -97,6 +98,7 @@ def build_news():
             "cover": asset_path(entry.get("cover")),
             "photos": photo_groups(entry.get("photos")),
             "sourceUrl": entry.get("sourceUrl", ""),
+            "unlisted": visibility == "unlisted",
         })
     return sorted(news, key=lambda item: item["date"], reverse=True)
 

@@ -20,7 +20,7 @@
       "caption": "這是照片組的測試說明，用來確認兩張照片下方能正常顯示文字。"
     }
   ],
-  "published": true,
   "excerpt": "",
-  "sourceUrl": ""
+  "sourceUrl": "",
+  "visibility": "public"
 }
