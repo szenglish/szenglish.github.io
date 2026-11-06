@@ -1,0 +1,137 @@
+# 內容後台設定。
+backend:
+  name: github
+  repo: szenglish/szenglish.github.io
+  branch: main
+
+media_folder: /assets/uploads
+public_folder: /assets/uploads
+
+collections:
+  - name: news
+    label: 應英月刊
+    label_singular: 文章
+    folder: /content/news
+    format: json
+    create: true
+    slug: "{{year}}{{month}}{{day}}-{{hour}}{{minute}}{{second}}"
+    identifier_field: title
+    summary: "{{date}}｜{{title}}"
+    sortable_fields: [date, title]
+    fields:
+      - { name: title, label: 標題 }
+      - name: date
+        label: 活動日期
+        widget: datetime
+        format: YYYY/MM/DD
+        time_format: false
+      - { name: author, label: 撰稿單位, required: false, default: 應用英語科學會 }
+      - { name: cover, label: 封面照片, widget: image, required: false }
+      - name: body
+        label: 內文
+        widget: richtext
+        modes: [rich_text]
+        buttons: [bold, italic, link, heading-two, bulleted-list, numbered-list, quote]
+        editor_components: [image]
+        hint: 可以直接把照片拖進內文。要加小標題時，點工具列最左邊的 ¶ 選單。
+      - name: photos
+        label: 文章照片
+        label_singular: 照片組
+        widget: list
+        required: false
+        hint: 每一組可以放一到兩張照片，下面搭一段說明。
+        fields:
+          - { name: images, label: 照片, widget: image, multiple: true }
+          - { name: caption, label: 照片說明, widget: text, required: false }
+      - name: published
+        label: 公開這篇文章
+        widget: boolean
+        default: true
+        hint: 關閉後文章會保留在後台，但不會顯示在網站上。
+      - name: excerpt
+        label: 列表摘要
+        widget: text
+        required: false
+        hint: 留空會自動使用內文第一段。
+      - name: sourceUrl
+        label: 舊網站原文連結
+        required: false
+        hint: 只有尚未搬完內文的舊文章才需要。
+
+  - name: events
+    label: 最近活動
+    label_singular: 活動
+    folder: /content/events
+    format: json
+    create: true
+    slug: "{{year}}{{month}}{{day}}-{{hour}}{{minute}}{{second}}"
+    identifier_field: title
+    summary: "{{date}}｜{{title}}"
+    sortable_fields: [date, title]
+    fields:
+      - { name: title, label: 活動名稱 }
+      - { name: date, label: 開始日期, widget: datetime, format: YYYY/MM/DD, time_format: false }
+      - name: endDate
+        label: 結束日期
+        widget: datetime
+        format: YYYY/MM/DD
+        time_format: false
+        required: false
+        hint: 只有一天的活動請留空。
+      - { name: place, label: 地點, required: false }
+      - name: link
+        label: 相關連結
+        required: false
+        hint: 可以貼報名表或活動報導的網址。
+
+  - name: members
+    label: 幹部
+    label_singular: 幹部
+    folder: /content/members
+    format: json
+    create: true
+    slug: "{{term}}-{{name}}"
+    identifier_field: name
+    summary: "第 {{term}} 屆｜{{dept}}｜{{name}}"
+    sortable_fields: [term, dept, name]
+    fields:
+      - name: term
+        label: 屆數
+        widget: number
+        value_type: int
+        min: 1
+        hint: 換屆時新增新一屆的資料即可，舊資料不用刪，網站會自動顯示最新一屆。
+      - name: dept
+        label: 部門
+        widget: select
+        options: [指導老師, 正副會長, 執行長, 顧問, 秘書處, 企劃部, 廣宣部, 公關部, 財務部, 器材部]
+      - { name: name, label: 姓名, hint: 中文姓名和英文名之間空一格，例如 王小明 MING }
+      - { name: title, label: 職稱, hint: 例如 部長、次長 }
+      - { name: photo, label: 照片, widget: image, required: false, hint: 建議使用直式半身照，比例 4:5 }
+      - name: history
+        label: 經歷
+        widget: text
+        required: false
+        hint: 一行寫一項。想分類時，在小標題前面加 #，例如「# 學歷 Education」。
+      - name: order
+        label: 同部門排序
+        widget: number
+        value_type: int
+        default: 1
+        hint: 數字小的排前面，例如部長 1、次長 2。
+
+  - name: documents
+    label: 文件專區
+    label_singular: 文件
+    folder: /content/documents
+    format: json
+    create: true
+    slug: "{{year}}{{month}}{{day}}-{{hour}}{{minute}}{{second}}"
+    identifier_field: title
+    summary: "{{category}}｜{{title}}"
+    sortable_fields: [category, title]
+    fields:
+      - { name: title, label: 文件名稱 }
+      - { name: category, label: 分類, widget: select, options: [組織章程, 財務部, 器材部, 其他] }
+      - { name: file, label: 檔案, widget: file, hint: 上傳檔案，或貼上雲端硬碟的公開連結。 }
+      - { name: order, label: 排序, widget: number, value_type: int, default: 1, hint: 數字小的排前面。 }

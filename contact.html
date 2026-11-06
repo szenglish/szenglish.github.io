@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>聯絡我們｜應用英語科學會</title>
+  <meta name="description" content="樹人醫專應用英語科學會的辦公室地址與聯絡信箱。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Noto+Sans+TC:wght@400;700;900&display=swap">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="contact">
+  <main>
+    <div class="page-banner">
+      <div class="wrap page-banner-inner">
+        <h1 lang="en">Contact</h1>
+        <p class="banner-zh">聯絡我們</p>
+        <p>有任何問題，歡迎與我們聯繫</p>
+      </div>
+    </div>
+    <div class="wrap section contact-layout">
+      <div class="contact-list">
+        <section class="contact-item">
+          <h2>應用英語科學會辦公室</h2>
+          <p>821 高雄市路竹區環球路 452 號 A717</p>
+          <a href="https://www.google.com/maps/search/?api=1&query=%E9%AB%98%E9%9B%84%E5%B8%82%E8%B7%AF%E7%AB%B9%E5%8D%80%E7%92%B0%E7%90%83%E8%B7%AF452%E8%99%9F" target="_blank" rel="noopener">在 Google 地圖開啟 ↗</a>
+        </section>
+        <section class="contact-item">
+          <h2>應用英語科學會信箱</h2>
+          <p>信件可備註是否指定部門回覆</p>
+          <a href="mailto:szae.official@gmail.com">szae.official@gmail.com</a>
+        </section>
+        <section class="contact-item">
+          <h2>應用英語科信箱</h2>
+          <a href="mailto:english@ms.szmc.edu.tw">english@ms.szmc.edu.tw</a>
+        </section>
+      </div>
+      <section class="feedback" id="feedback">
+        <p class="eyebrow">Feedback</p>
+        <h2>意見投遞箱</h2>
+        <p class="feedback-intro">發現網站的問題，或有更好的建議嗎？歡迎告訴我們。填寫不需要登入，也不會留下姓名。</p>
+        <form id="feedback-form" novalidate>
+          <fieldset>
+            <legend>您所就讀的年級 <span aria-hidden="true">*</span></legend>
+            <div class="choices">
+              <label><input type="radio" name="grade" value="一年級"><span>一年級</span></label>
+              <label><input type="radio" name="grade" value="二年級"><span>二年級</span></label>
+              <label><input type="radio" name="grade" value="三年級"><span>三年級</span></label>
+              <label><input type="radio" name="grade" value="四年級"><span>四年級</span></label>
+              <label><input type="radio" name="grade" value="五年級"><span>五年級</span></label>
+              <label><input type="radio" name="grade" value="已畢業"><span>已畢業</span></label>
+            </div>
+            <p class="field-error" id="error-grade" hidden>請選擇年級。</p>
+          </fieldset>
+          <fieldset>
+            <legend>您對本站的使用心得 <span aria-hidden="true">*</span></legend>
+            <div class="choices">
+              <label><input type="radio" name="rating" value="非常差勁"><span>非常差勁</span></label>
+              <label><input type="radio" name="rating" value="有待加強"><span>有待加強</span></label>
+              <label><input type="radio" name="rating" value="普通"><span>普通</span></label>
+              <label><input type="radio" name="rating" value="非常好"><span>非常好</span></label>
+              <label><input type="radio" name="rating" value="極佳"><span>極佳</span></label>
+            </div>
+            <p class="field-error" id="error-rating" hidden>請選擇使用心得。</p>
+          </fieldset>
+          <fieldset>
+            <legend>您是否在本站順利完成想做的事？ <span aria-hidden="true">*</span></legend>
+            <div class="choices">
+              <label><input type="radio" name="completed" value="是"><span>是</span></label>
+              <label><input type="radio" name="completed" value="否"><span>否</span></label>
+            </div>
+            <p class="field-error" id="error-completed" hidden>請選擇是或否。</p>
+          </fieldset>
+          <div class="field">
+            <label for="suggestion">對於本會網站，我有以下更好的建議 <span aria-hidden="true">*</span></label>
+            <textarea id="suggestion" name="suggestion" rows="5" maxlength="2000" required></textarea>
+            <p class="field-error" id="error-suggestion" hidden>請填寫你的建議。</p>
+          </div>
+          <div class="field-trap" aria-hidden="true">
+            <label for="website">網站（請留空）</label>
+            <input id="website" name="website" type="text" tabindex="-1" autocomplete="off">
+          </div>
+          <button class="button button-navy" type="submit">送出意見</button>
+          <p class="form-message" id="feedback-message" role="status"></p>
+        </form>
+      </section>
+    </div>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="js/site.js"></script>
+  <script src="js/pages.js"></script>
+</body>
+</html>
