@@ -1,0 +1,26 @@
+{
+  "title": "測試文章",
+  "date": "2026/11/06",
+  "author": "應用英語科學會",
+  "cover": "/assets/uploads/WLL07365-已增強-雜訊減少.jpg",
+  "body": "這是一篇測試文章，用來確認內容後台的發文功能是否正常，確認完成後會刪除。\n\n## 測試小標題\n\n## \n\n這一段用來測試粗體和連結。請把「**這幾個字**」設成粗體，再把「[應用英語科學會](https://szenglish.github.io/about.html)」加上連結，網址填\n\n第一項測試內容\n\n第二項測試內容\n\n第三項測試內容",
+  "photos": [
+    {
+      "images": [
+        "/assets/uploads/S__45498380_0.jpg",
+        "/assets/uploads/S__45498382_0.jpg"
+      ],
+      "caption": "這是照片組的測試說明，用來確認兩張照片asdkoaskdoaskpd方能正常顯示文字。"
+    },
+    {
+      "images": [
+        "/assets/uploads/S__45498382_0.jpg",
+        "/assets/uploads/product-pic01.webp"
+      ],
+      "caption": "這是照片組的測試說明，用來確認兩張照片下方能正常顯示文字。"
+    }
+  ],
+  "published": true,
+  "excerpt": "",
+  "sourceUrl": ""
+}
