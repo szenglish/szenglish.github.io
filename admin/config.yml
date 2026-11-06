@@ -7,6 +7,17 @@ backend:
 media_folder: /assets/uploads
 public_folder: /assets/uploads
 
+# 上傳時自動縮小並轉成 WebP，成員不用先處理照片。
+media_libraries:
+  default:
+    config:
+      transformations:
+        raster_image:
+          format: webp
+          quality: 82
+          width: 1600
+          height: 1600
+
 collections:
   - name: news
     label: 應英月刊
@@ -14,7 +25,7 @@ collections:
     folder: /content/news
     format: json
     create: true
-    slug: "{{year}}{{month}}{{day}}-{{hour}}{{minute}}{{second}}"
+    slug: "{{year}}{{month}}{{day}}-{{uuid_shorter}}"
     identifier_field: title
     summary: "{{date}}｜{{title}}"
     sortable_fields: [date, title]
@@ -64,7 +75,7 @@ collections:
     folder: /content/events
     format: json
     create: true
-    slug: "{{year}}{{month}}{{day}}-{{hour}}{{minute}}{{second}}"
+    slug: "{{year}}{{month}}{{day}}-{{uuid_shorter}}"
     identifier_field: title
     summary: "{{date}}｜{{title}}"
     sortable_fields: [date, title]
@@ -126,7 +137,7 @@ collections:
     folder: /content/documents
     format: json
     create: true
-    slug: "{{year}}{{month}}{{day}}-{{hour}}{{minute}}{{second}}"
+    slug: "{{year}}{{month}}{{day}}-{{uuid_shorter}}"
     identifier_field: title
     summary: "{{category}}｜{{title}}"
     sortable_fields: [category, title]

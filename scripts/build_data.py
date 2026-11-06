@@ -49,7 +49,9 @@ def asset_path(value):
 
 
 def body_paths(body):
-    return re.sub(r"(\]\(|src=\")/assets/", r"\1assets/", str(body or ""))
+    text = re.sub(r"(\]\(|src=\")/assets/", r"\1assets/", str(body or ""))
+    # 編輯器可能留下沒有文字的小標題，顯示出來會是一段空白。
+    return re.sub(r"^#{1,6}[ \t]*$\n?", "", text, flags=re.MULTILINE)
 
 
 def photo_groups(photos):

@@ -1,7 +1,7 @@
 // 共用的頁首、頁尾與新聞資料載入。內容一律用 textContent 寫入，避免表單內容變成 HTML。
 (function () {
   var CONFIG = window.SZAE_CONFIG;
-  var LOGO = "assets/images/logo.png";
+  var LOGO = "assets/images/logo.webp";
 
   var NAV = [
     { label: "首頁", href: "index.html", page: "home" },
