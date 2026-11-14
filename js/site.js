@@ -195,9 +195,32 @@
     if (event.target.tagName === "IMG") handleBrokenImage(event.target);
   }, true);
 
+  // 從 Google 登入憑證讀出信箱、名字和大頭貼網址，只用來顯示（身分驗證在 Apps Script 做）。
+  function googleProfile(token) {
+    try {
+      var part = String(token).split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+      var data = JSON.parse(decodeURIComponent(escape(atob(part))));
+      return { email: data.email || "", name: data.name || "", picture: data.picture || "" };
+    } catch (err) {
+      return { email: "", name: "", picture: "" };
+    }
+  }
+
+  // 圓形頭像：有 Google 大頭貼就用照片，載入失敗或沒有時顯示名字第一個字。
+  function avatar(name, picture) {
+    var box = el("span", { class: "borrow-avatar", "aria-hidden": "true", text: String(name || "?").charAt(0) });
+    if (picture) {
+      var img = el("img", { src: picture, alt: "", referrerpolicy: "no-referrer" });
+      img.addEventListener("load", function () { box.textContent = ""; box.appendChild(img); });
+    }
+    return box;
+  }
+
   window.SZAE = {
     config: CONFIG,
     el: el,
+    googleProfile: googleProfile,
+    avatar: avatar,
     loadData: loadData,
     articleUrl: articleUrl,
     coverImage: coverImage,

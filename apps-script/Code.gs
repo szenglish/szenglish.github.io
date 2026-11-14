@@ -659,8 +659,14 @@ function borrowSubmit(who, input) {
       "借用物品": items.map(function (i) { return i.name + " × " + i.qty + " " + catalog[i.name].unit; }).join("\n"),
       "用途說明": safeText(purpose), "使用地點": safeText(place), "狀態": BORROW.equipApprove
     }));
-    notifyRole("equip", "【器材借用】新的申請待審核 " + no,
-      name + "（" + unit + "）申請借用器材，期間 " + range.start + " 至 " + range.end + "。\n\n請到 https://szenglish.github.io/borrow.html 登入審核。");
+    notifyRole("equip", "【器材借用】新申請待審核 " + no, {
+      title: "新的器材借用申請",
+      intro: "有一筆新的器材借用申請，等待器材長審核。",
+      request: { no: no, unit: unit, name: name, id: who.student.id, start: range.start, end: range.end,
+        items: items.map(function (i) { return i.name + " × " + i.qty + " " + catalog[i.name].unit; }).join("\n"),
+        place: place, purpose: purpose, phone: phone },
+      button: "前往審核"
+    });
     return { ok: true, no: no };
   });
 }
@@ -687,14 +693,21 @@ function borrowAct(who, input) {
         var left = shortages(r);
         if (left) throw new Error(left);
         setRequest(r, { "狀態": BORROW.presidentApprove, "器材長審核": "同意（" + stamp + "）" });
-        notifyRole("president", "【器材借用】待會長審核 " + r.no,
-          r.name + "（" + r.unit + "）的借用申請已由器材長同意，期間 " + r.start + " 至 " + r.end + "。\n\n請到 https://szenglish.github.io/borrow.html 登入審核。");
+        notifyRole("president", "【器材借用】待會長審核 " + r.no, {
+          title: "器材借用申請待會長審核",
+          intro: "器材長已同意以下申請，請進行會長審核。",
+          request: r,
+          button: "前往審核"
+        });
       } else if (r.status === BORROW.presidentApprove) {
         if (!who.roles.president) throw new Error("這一關要由會長審核");
         setRequest(r, { "狀態": BORROW.approved, "會長審核": "同意（" + stamp + "）" });
-        mailApplicant(r, "【器材借用】申請已核准 " + r.no,
-          "你的器材借用申請已核准。\n\n借用期間：" + r.start + " 至 " + r.end + "\n借用物品：\n" + r.items +
-          "\n\n領取時請到科學會辦公室（A717），與承辦人員當面確認器材無誤。器材若遺失或損壞需照價賠償。");
+        mailApplicant(r, "【器材借用】申請已核准 " + r.no, {
+          title: "申請已核准",
+          tone: "ok",
+          intro: "您的器材借用申請已通過審核。請於借用期間開始時，至科學會辦公室（A717）領取器材。",
+          note: "領取時請與承辦人員當面清點器材；器材若有遺失或損壞，需照價賠償。"
+        });
       } else {
         throw new Error("這筆申請目前是「" + r.status + "」，不能核准");
       }
@@ -708,16 +721,25 @@ function borrowAct(who, input) {
       var change = { "狀態": BORROW.rejected, "退回原因": safeText(reason) };
       change[column] = "退回（" + stamp + "）";
       setRequest(r, change);
-      mailApplicant(r, "【器材借用】申請未通過 " + r.no,
-        "很抱歉，你的器材借用申請未通過。\n\n原因：" + reason + "\n\n如有疑問，請聯絡科學會器材長。");
+      mailApplicant(r, "【器材借用】申請未通過 " + r.no, {
+        title: "申請未通過",
+        tone: "warn",
+        intro: "很抱歉，您的器材借用申請未通過審核。",
+        extra: [["退回原因", reason]],
+        note: "如有疑問，請洽應用英語科學會器材長。"
+      });
     } else if (act === "lend") {
       if (r.status !== BORROW.approved) throw new Error("核准後才能借出");
       setRequest(r, { "狀態": BORROW.lent, "借出紀錄": stamp });
     } else if (act === "return") {
       if (r.status !== BORROW.lent) throw new Error("借出後才能登記歸還");
       setRequest(r, { "狀態": BORROW.returned, "歸還驗收": stamp, "歸還備註": safeText(text(input.note).slice(0, 200)) });
-      mailApplicant(r, "【器材借用】已完成歸還 " + r.no,
-        "你借用的器材已歸還並完成驗收，謝謝。" + (text(input.note) ? "\n\n驗收備註：" + text(input.note) : ""));
+      mailApplicant(r, "【器材借用】器材已歸還 " + r.no, {
+        title: "器材已歸還",
+        tone: "ok",
+        intro: "您借用的器材已完成歸還驗收，感謝您的配合。",
+        extra: text(input.note) ? [["驗收備註", text(input.note)]] : []
+      });
     } else {
       throw new Error("不支援的操作");
     }
@@ -807,21 +829,86 @@ function nextBorrowNo() {
   return prefix + String(max + 1).padStart(2, "0");
 }
 
-function notifyRole(role, subject, body) {
+function notifyRole(role, subject, mail) {
   readTable("officers").forEach(function (r) {
     var title = text(r["職稱"]);
     var match = role === "equip" ? title.indexOf("器材") >= 0 : title === "會長";
-    if (match && text(r["Gmail"])) sendMail(text(r["Gmail"]), subject, body);
+    if (!match || !text(r["Gmail"])) return;
+    sendMail(text(r["Gmail"]), subject, merge({ greeting: (text(r["姓名"]) || "幹部") + " 您好：", officer: true }, mail));
   });
 }
 
-function mailApplicant(r, subject, body) {
-  sendMail(r.email, subject, r.name + " 你好：\n\n" + body + "\n\n申請編號：" + r.no + "\n查看進度：https://szenglish.github.io/borrow.html\n\n樹人醫專應用英語科學會");
+function mailApplicant(r, subject, mail) {
+  sendMail(r.email, subject, merge({ greeting: r.name + " 同學您好：", request: r, button: "查看申請進度" }, mail));
+}
+
+function merge(base, extra) {
+  Object.keys(extra).forEach(function (k) { base[k] = extra[k]; });
+  return base;
+}
+
+// ── 通知信版面 ──
+// 同一份內容產生 HTML 版（排版過的卡片）和純文字版（收信軟體不支援 HTML 時使用）。
+
+var MAIL_URL = "https://szenglish.github.io/borrow.html";
+
+function mailRows(mail) {
+  var r = mail.request || {};
+  var rows = [
+    ["申請編號", r.no],
+    ["借用單位", r.unit],
+    ["借用人", r.name ? r.name + (r.id ? "（學號 " + r.id + "）" : "") : ""],
+    ["借用期間", r.start && r.end ? r.start + " 至 " + r.end : ""],
+    ["借用物品", r.items],
+    ["使用地點", r.place]
+  ];
+  if (mail.officer) rows.push(["用途說明", r.purpose], ["聯絡電話", r.phone]);
+  return rows.concat(mail.extra || []).filter(function (row) { return text(row[1]); });
+}
+
+function mailText(mail) {
+  var lines = [mail.greeting, "", mail.intro, ""];
+  mailRows(mail).forEach(function (row) {
+    var value = text(row[1]);
+    lines.push(value.indexOf("\n") >= 0 ? row[0] + "：\n  " + value.split("\n").join("\n  ") : row[0] + "：" + value);
+  });
+  if (mail.note) lines.push("", mail.note);
+  lines.push("", (mail.button || "查看") + "：" + MAIL_URL, "", "樹人醫專應用英語科學會", "（本信由系統自動發送，請勿直接回覆）");
+  return lines.join("\n");
+}
+
+function mailHtml(mail) {
+  var accent = { ok: "#1f6f43", warn: "#8b1a20" }[mail.tone] || "#1d2a44";
+  var font = "'Noto Sans TC','PingFang TC','Microsoft JhengHei',sans-serif";
+  var rows = mailRows(mail).map(function (row) {
+    var value = htmlEscape(text(row[1])).replace(/\n/g, "<br>");
+    return '<tr><td style="padding:10px 0;border-bottom:1px solid #e5e1d8;color:#6b6b6b;font-size:14px;line-height:1.85;width:84px;vertical-align:top;white-space:nowrap">' +
+      htmlEscape(row[0]) + '</td><td style="padding:10px 0 10px 12px;border-bottom:1px solid #e5e1d8;color:#1d2a44;font-size:15px;line-height:1.7;vertical-align:top">' +
+      value + "</td></tr>";
+  }).join("");
+  return '<!doctype html><html><body style="margin:0;padding:0;background:#f4f1ea">' +
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f1ea;padding:24px 12px;font-family:' + font + '">' +
+    '<tr><td align="center"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border:1px solid #e5e1d8">' +
+    '<tr><td style="background:#8b1a20;padding:16px 24px;color:#ffffff;font-size:15px;font-weight:700;letter-spacing:0.05em">應用英語科學會｜器材借用</td></tr>' +
+    '<tr><td style="padding:28px 24px 8px">' +
+    '<p style="margin:0;font-size:22px;font-weight:900;color:' + accent + '">' + htmlEscape(mail.title) + "</p>" +
+    '<p style="margin:16px 0 4px;font-size:15px;color:#1d2a44">' + htmlEscape(mail.greeting) + "</p>" +
+    '<p style="margin:0 0 18px;font-size:15px;line-height:1.7;color:#1d2a44">' + htmlEscape(mail.intro) + "</p>" +
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #e5e1d8">' + rows + "</table>" +
+    (mail.note ? '<p style="margin:18px 0 0;padding:12px 14px;background:#f4f1ea;font-size:14px;line-height:1.7;color:#1d2a44">' + htmlEscape(mail.note) + "</p>" : "") +
+    '<p style="margin:24px 0 8px"><a href="' + MAIL_URL + '" style="display:inline-block;padding:12px 22px;background:#1d2a44;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px">' +
+    htmlEscape(mail.button || "查看") + "</a></p></td></tr>" +
+    '<tr><td style="padding:18px 24px 22px;color:#8a8a8a;font-size:12px;line-height:1.7;border-top:1px solid #e5e1d8">樹人醫專應用英語科學會<br>本信由系統自動發送，請勿直接回覆。</td></tr>' +
+    "</table></td></tr></table></body></html>";
+}
+
+function htmlEscape(value) {
+  return text(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
 // 寄信失敗（例如超過每日額度）不影響審核結果。
 // 「設定」分頁的「測試模式」為「是」時，所有信件改寄給職稱「開發者」的人，主旨標出原本的收件人。
-function sendMail(to, subject, body) {
+function sendMail(to, subject, mail) {
   try {
     if (readSettings().testMode) {
       var developers = readTable("officers").filter(function (r) {
@@ -831,7 +918,7 @@ function sendMail(to, subject, body) {
       subject = "【測試｜原收件人 " + to + "】" + subject;
       to = developers.join(",");
     }
-    MailApp.sendEmail({ to: to, subject: subject, body: body, name: "應用英語科學會" });
+    MailApp.sendEmail({ to: to, subject: subject, body: mailText(mail), htmlBody: mailHtml(mail), name: "應用英語科學會" });
   } catch (err) {
     console.error("寄信失敗", to, err);
   }

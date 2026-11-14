@@ -161,21 +161,12 @@
     });
   }
 
-  // 從 Google 登入憑證讀出信箱，只用來顯示。
-  function tokenEmail() {
-    try {
-      var part = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
-      return JSON.parse(decodeURIComponent(escape(atob(part)))).email || "";
-    } catch (err) {
-      return "";
-    }
-  }
-
   // 投票者資訊卡（樣式和器材借用頁共用）。
   function voterCard(voter) {
     var developer = voter.id === "開發者";
     var name = voter.name || (developer ? "開發者" : "學號 " + voter.id);
-    var email = tokenEmail();
+    var profile = S.googleProfile(token);
+    var email = profile.email;
     var change = el("button", { class: "text-button borrow-switch", type: "button", text: "換帳號" });
     change.addEventListener("click", function () {
       token = null;
@@ -183,7 +174,7 @@
       replace(view.querySelector(".vote-body"), [signIn()]);
     });
     return el("div", { class: "borrow-who" }, [
-      el("span", { class: "borrow-avatar", "aria-hidden": "true", text: name.charAt(0) }),
+      S.avatar(name, profile.picture),
       el("div", { class: "borrow-who-text" }, [
         el("p", { class: "borrow-who-name", text: name }),
         el("p", { class: "borrow-who-meta" }, [

@@ -2292,7 +2292,9 @@ html:has(.sub-nav) { scroll-padding-top: 150px; }
   color: var(--white);
   font-weight: 900;
   font-size: 1.15rem;
+  overflow: hidden;
 }
+.borrow-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .borrow-who-text { flex: 1; min-width: 0; }
 .borrow-who-name { margin: 0; font-weight: 900; font-size: 1.1rem; color: var(--navy); }
 .borrow-who-meta {
@@ -2476,20 +2478,67 @@ html:has(.sub-nav) { scroll-padding-top: 150px; }
 
 .borrow-card { padding: 18px 20px; background: var(--white); border: 1px solid var(--rule); }
 
-.borrow-card h3 { color: var(--navy); font-size: 18px; font-weight: 900; }
+.borrow-card h3 { margin: 2px 0 0; color: var(--navy); font-size: 20px; font-weight: 900; }
 
-.borrow-details {
+.borrow-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.borrow-no { margin: 0; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+
+/* 申請內容：標籤和內容同一條基線，每列之間細線分隔 */
+.borrow-details { margin: 14px 0 0; border-top: 1px solid var(--rule); }
+.borrow-row {
   display: grid;
-  grid-template-columns: 6.5em minmax(0, 1fr);
-  gap: 6px 12px;
-  margin: 12px 0 0;
+  grid-template-columns: 5.5em minmax(0, 1fr);
+  gap: 12px;
+  align-items: baseline;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--rule);
 }
+.borrow-details dt { color: var(--muted); font-size: 14px; font-weight: 700; line-height: 1.6; }
+.borrow-details dd { margin: 0; line-height: 1.6; overflow-wrap: anywhere; white-space: pre-line; }
+.borrow-details dd strong { color: var(--navy); font-variant-numeric: tabular-nums; }
+.borrow-details dd a { color: var(--navy); font-variant-numeric: tabular-nums; }
+.borrow-muted { color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
 
-.borrow-details > div { display: contents; }
+.borrow-items { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+.borrow-items li { display: flex; justify-content: space-between; gap: 12px; max-width: 320px; }
+.borrow-qty { color: var(--navy); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
-.borrow-details dt { color: var(--muted); font-size: 14px; }
-
-.borrow-details dd { margin: 0; white-space: pre-line; overflow-wrap: anywhere; }
+/* 審核進度：直線時間軸 */
+.borrow-steps { margin: 16px 0 0; padding: 0; list-style: none; }
+.borrow-step { position: relative; display: flex; gap: 12px; padding-bottom: 14px; }
+.borrow-step:last-child { padding-bottom: 0; }
+.borrow-step:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 18px;
+  bottom: 0;
+  width: 2px;
+  background: var(--rule);
+}
+.borrow-step.is-done:not(:last-child)::before { background: var(--navy); }
+.borrow-step-dot {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-top: 5px;
+  border-radius: 50%;
+  border: 2px solid var(--rule);
+  background: var(--white);
+}
+.borrow-step.is-done .borrow-step-dot { background: var(--navy); border-color: var(--navy); }
+.borrow-step.is-current .borrow-step-dot { border-color: var(--red); box-shadow: 0 0 0 3px rgba(139, 26, 32, 0.15); }
+.borrow-step.is-rejected .borrow-step-dot { background: var(--red); border-color: var(--red); }
+.borrow-step-body { flex: 1; min-width: 0; }
+.borrow-step-head { display: flex; flex-wrap: wrap; gap: 4px 10px; margin: 0; line-height: 1.6; }
+.borrow-step-label { font-weight: 700; color: var(--navy); }
+.borrow-step.is-todo .borrow-step-label { color: var(--muted); font-weight: 400; }
+.borrow-step-result { font-size: 14px; color: var(--muted); }
+.borrow-step.is-done .borrow-step-result { color: var(--navy); }
+.borrow-step.is-current .borrow-step-result,
+.borrow-step.is-rejected .borrow-step-result { color: var(--red); font-weight: 700; }
+.borrow-step-meta { margin: 0; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.borrow-step-note { margin: 6px 0 0; padding: 8px 10px; background: var(--mist); font-size: 14px; }
 
 .borrow-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--rule); }
 

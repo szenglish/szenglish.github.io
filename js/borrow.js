@@ -102,7 +102,7 @@
       showSignin();
     });
     return el("div", { class: "borrow-who" }, [
-      el("span", { class: "borrow-avatar", "aria-hidden": "true", text: name.charAt(0) }),
+      S.avatar(name, S.googleProfile(token).picture),
       el("div", { class: "borrow-who-text" }, [
         el("p", { class: "borrow-who-name", text: name }),
         el("p", { class: "borrow-who-meta" }, tags.concat([el("span", { class: "borrow-who-email", text: who.email })]))
@@ -120,28 +120,69 @@
 
   // ── 申請單卡片（學生和幹部共用） ──
 
+  // 「同意（王小明 2026/11/15 00:47）」或「王小明 2026/11/15 00:48」拆成結果、經手人、時間。
+  function parseStamp(value) {
+    var m = /^(?:(同意|退回)（)?(.*?)\s+(\d{4}\/\d{2}\/\d{2} \d{2}:\d{2})）?$/.exec(value || "");
+    return m ? { verdict: m[1] || "", who: m[2], time: m[3] } : { verdict: "", who: value || "", time: "" };
+  }
+
+  function itemList(items) {
+    return el("ul", { class: "borrow-items" }, items.split("\n").filter(Boolean).map(function (line) {
+      var m = /^(.*?)\s*×\s*(.+)$/.exec(line);
+      return el("li", {}, m ? [el("span", { text: m[1] }), el("span", { class: "borrow-qty", text: "× " + m[2] })] : [el("span", { text: line })]);
+    }));
+  }
+
+  // 審核進度：器材長 → 會長 → 借出 → 歸還。
+  function progress(r) {
+    var ended = r.status === "已退回" || r.status === "已取消";
+    var current = { "待器材長審核": "equip", "待會長審核": "president", "已核准": "lent", "已借出": "returned" }[r.status];
+    var steps = [
+      { key: "equip", label: "器材長審核", value: r.equip },
+      { key: "president", label: "會長審核", value: r.president },
+      { key: "lent", label: "借出", value: r.lent },
+      { key: "returned", label: "歸還驗收", value: r.returned }
+    ];
+    return el("ol", { class: "borrow-steps" }, steps.map(function (s) {
+      var stamp = parseStamp(s.value);
+      var state = !s.value ? (s.key === current && !ended ? "current" : "todo") : (stamp.verdict === "退回" ? "rejected" : "done");
+      var result = state === "current" ? "處理中" : state === "todo" ? "—" : (stamp.verdict || "完成");
+      var extra = [];
+      if (state === "rejected" && r.reason) extra.push(el("p", { class: "borrow-step-note", text: "退回原因：" + r.reason }));
+      if (s.key === "returned" && r.returnNote) extra.push(el("p", { class: "borrow-step-note", text: "備註：" + r.returnNote }));
+      return el("li", { class: "borrow-step is-" + state }, [
+        el("span", { class: "borrow-step-dot", "aria-hidden": "true" }),
+        el("div", { class: "borrow-step-body" }, [
+          el("p", { class: "borrow-step-head" }, [el("span", { class: "borrow-step-label", text: s.label }), el("span", { class: "borrow-step-result", text: result })]),
+          s.value ? el("p", { class: "borrow-step-meta", text: [stamp.who, stamp.time].filter(Boolean).join(" · ") }) : null
+        ].concat(extra))
+      ]);
+    }));
+  }
+
   function requestCard(r, actions) {
     function row(label, value) {
-      return value ? el("div", {}, [el("dt", { text: label }), el("dd", { text: value })]) : null;
+      if (!value) return null;
+      var nodes = [].concat(value).map(function (v) { return typeof v === "string" ? document.createTextNode(v) : v; });
+      return el("div", { class: "borrow-row" }, [el("dt", { text: label }), el("dd", {}, nodes)]);
     }
     return el("article", { class: "borrow-card" }, [
-      el("div", { class: "vote-card-head" }, [
-        el("h3", { text: r.no + "　" + r.unit }),
+      el("header", { class: "borrow-card-head" }, [
+        el("div", {}, [
+          el("p", { class: "borrow-no", text: "申請編號 " + r.no }),
+          el("h3", { text: r.unit })
+        ]),
         el("span", { class: "vote-chip is-" + (STATUS_CLASS[r.status] || "closed"), text: r.status })
       ]),
       el("dl", { class: "borrow-details" }, [
-        row("借用期間", r.start + " – " + r.end),
-        row("借用人", r.name + "（" + r.id + "）"),
-        row("聯絡電話", r.phone),
-        row("借用物品", r.items),
-        row("用途說明", r.purpose),
+        row("借用期間", el("strong", { text: r.start + " – " + r.end })),
+        row("借用人", [document.createTextNode(r.name + " "), el("span", { class: "borrow-muted", text: "學號 " + r.id })]),
+        row("聯絡電話", el("a", { href: "tel:" + r.phone.replace(/[^0-9+]/g, ""), text: r.phone })),
         row("使用地點", r.place),
-        row("器材長審核", r.equip),
-        row("會長審核", r.president),
-        row("退回原因", r.reason),
-        row("借出", r.lent),
-        row("歸還驗收", r.returned + (r.returnNote ? "\n備註：" + r.returnNote : ""))
+        row("用途說明", r.purpose),
+        row("借用物品", itemList(r.items))
       ]),
+      r.status === "已取消" ? el("p", { class: "borrow-step-note", text: "申請人已取消這筆申請。" }) : progress(r),
       actions && actions.length ? el("div", { class: "borrow-actions" }, actions) : null
     ]);
   }
