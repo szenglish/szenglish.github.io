@@ -3,7 +3,7 @@ window.SZAE_CONFIG = {
   feedbackUrl: "",
   paycheckUrl: "",
   // 幹部收費頁的 Google 登入用戶端 ID，和 Code.gs 的 GOOGLE_CLIENT_ID 相同。
-  googleClientId: "",
+  googleClientId: "938430486759-qsugaooebsk4i55q8k0946n68me4gus6.apps.googleusercontent.com",
   term: "第十五屆",
   motto: "團結、責任、勇敢、熱忱、創新",
   email: "szae.official@gmail.com",

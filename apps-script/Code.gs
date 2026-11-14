@@ -2,7 +2,7 @@
 // 請從試算表的「擴充功能 > Apps Script」貼上這份程式，設定方式見 README.md。
 
 // 幹部用 Google 帳號登入收費頁時用的 OAuth 用戶端 ID，和 config.js 的 googleClientId 相同。
-var GOOGLE_CLIENT_ID = "";
+var GOOGLE_CLIENT_ID = "938430486759-qsugaooebsk4i55q8k0946n68me4gus6.apps.googleusercontent.com";
 
 var SHEETS = {
   feedback: "意見",
