@@ -428,8 +428,10 @@ ul { padding: 0; list-style: none; }
 .events-section { padding-bottom: 0; }
 
 /* 首頁：會員服務快捷卡片 */
-.services { padding-top: clamp(40px, 5vw, 64px); }
-.services .title-block { margin-bottom: 20px; }
+.services { padding-top: clamp(32px, 4vw, 48px); }
+.services-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+.services-head .eyebrow { margin: 0; }
+.services-head h2 { margin: 0; color: var(--navy); font-size: 20px; font-weight: 900; }
 
 .service-list {
   display: grid;
