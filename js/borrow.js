@@ -30,7 +30,7 @@
         showSignin(data.error);
         throw Object.assign(new Error(data.error), { handled: true });
       }
-      if (!data.ok) throw new Error(data.error || "操作失敗");
+      if (!data.ok) throw new Error(data.error || "系統處理失敗");
       return data;
     });
   }
@@ -54,10 +54,10 @@
 
   function showSignin(message) {
     var box = el("div", { class: "vote-signin" }, [
-      el("h3", { text: "登入申請或審核" }),
-      el("p", { text: "申請借用請用學校信箱（s學號@student.szmc.edu.tw）登入；幹部請用登記在幹部名單的帳號登入審核。" }),
+      el("h3", { text: "請登入以申請或審核" }),
+      el("p", { text: "申請借用請以學校 Google 帳號（s學號@student.szmc.edu.tw）登入；幹部請以登記於幹部名單之帳號登入審核。" }),
       el("div", { class: "signin-button", id: "borrow-signin-button" }),
-      el("p", { class: "vote-signin-tip", text: "無法登入時，請改用 Chrome 或 Safari 開啟此頁面。" })
+      el("p", { class: "vote-signin-tip", text: "若無法登入，請改以 Chrome 或 Safari 開啟本頁面。" })
     ]);
     replace(app, [message ? notice(message, "error") : null, box]);
     setupGoogle(box.querySelector("#borrow-signin-button"));
@@ -182,7 +182,7 @@
         row("用途說明", r.purpose),
         row("借用物品", itemList(r.items))
       ]),
-      r.status === "已取消" ? el("p", { class: "borrow-step-note", text: "申請人已取消這筆申請。" }) : progress(r),
+      r.status === "已取消" ? el("p", { class: "borrow-step-note", text: "本申請已由申請人取消。" }) : progress(r),
       actions && actions.length ? el("div", { class: "borrow-actions" }, actions) : null
     ]);
   }
@@ -222,7 +222,7 @@
         return true;
       });
       replace(listBox, shown.length ? shown.map(function (r) { return requestCard(r, officerActions(r)); })
-        : [S.statusMessage(mode === "mine" ? "目前沒有待處理的申請。" : "沒有申請。")]);
+        : [S.statusMessage(mode === "mine" ? "目前無待處理之申請。" : "目前無申請紀錄。")]);
     }
 
     function load() {
@@ -246,20 +246,20 @@
       if (canReview) {
         list.push(actionButton("同意", "primary", function () { return act(r, { act: "approve" }); }));
         list.push(actionButton("退回", "text", function () {
-          var reason = prompt("退回 " + r.no + " 的原因：");
+          var reason = prompt("請填寫退回 " + r.no + " 之原因：");
           if (!reason || !reason.trim()) return Promise.resolve();
           return act(r, { act: "reject", reason: reason.trim() });
         }));
       }
       if (r.status === "已核准") {
         list.push(actionButton("登記借出", "primary", function () {
-          if (!confirm("確認已與 " + r.name + " 當面點交器材？")) return Promise.resolve();
+          if (!confirm("確認已與 " + r.name + " 當面完成器材點交？")) return Promise.resolve();
           return act(r, { act: "lend" });
         }));
       }
       if (r.status === "已借出") {
         list.push(actionButton("登記歸還", "primary", function () {
-          var note = prompt("歸還驗收備註（器材有損壞或短少時填寫，沒有就留空）：", "");
+          var note = prompt("歸還驗收備註（器材如有損壞或短缺請註明，無則免填）：", "");
           if (note === null) return Promise.resolve();
           return act(r, { act: "return", note: note.trim() });
         }));
@@ -293,7 +293,7 @@
       purpose: el("textarea", { rows: "3", maxlength: "500" }),
       place: el("input", { type: "text", maxlength: "100", placeholder: "例如 A301 教室" })
     };
-    var itemsBox = el("div", { class: "borrow-items" }, [el("p", { class: "borrow-hint", text: "先選好借用期間，就會顯示那段時間還能借的數量。" })]);
+    var itemsBox = el("div", { class: "borrow-items" }, [el("p", { class: "borrow-hint", text: "選擇借用期間後，系統將顯示該期間各項器材之可借數量。" })]);
     var message = el("p", { class: "form-message", role: "status" });
     var submit = el("button", { class: "button button-navy", type: "submit", text: "送出申請" });
     var quantities = {};
@@ -307,10 +307,10 @@
       var e = fields.end.value;
       if (!s || !e) return;
       if (e < s) {
-        replace(itemsBox, [el("p", { class: "borrow-hint is-error", text: "結束日期不能早於開始日期。" })]);
+        replace(itemsBox, [el("p", { class: "borrow-hint is-error", text: "結束日期不得早於開始日期。" })]);
         return;
       }
-      replace(itemsBox, [S.statusMessage("查詢可借數量…")]);
+      replace(itemsBox, [S.statusMessage("正在查詢可借數量…")]);
       equipment(s, e).then(function (data) {
         if (!data.ok) throw new Error(data.error);
         quantities = {};
@@ -325,11 +325,11 @@
           return el("div", { class: "borrow-item" + (left ? "" : " is-out") }, [
             el("div", {}, [
               el("p", { class: "borrow-item-name", text: item.name }),
-              el("p", { class: "borrow-item-meta", text: left ? "可借 " + left + " " + item.unit + (item.note ? "・" + item.note : "") : "這段期間已借完" })
+              el("p", { class: "borrow-item-meta", text: left ? "可借 " + left + " " + item.unit + (item.note ? "・" + item.note : "") : "本期間已無可借數量" })
             ]),
             qty
           ]);
-        }) : [el("p", { class: "borrow-hint", text: "器材清單還沒有建立，請聯絡器材長。" })]);
+        }) : [el("p", { class: "borrow-hint", text: "器材清單尚未建立，請洽器材長。" })]);
       }).catch(function (err) {
         replace(itemsBox, [el("p", { class: "borrow-hint is-error", text: "讀取失敗：" + err.message })]);
       });
@@ -355,7 +355,7 @@
         purpose: fields.purpose.value, place: fields.place.value
       }).then(function (res) {
         render();
-        app.insertBefore(notice("已送出申請（編號 " + res.no + "），審核結果會寄到你的學校信箱。", "ok"), app.children[1]);
+        app.insertBefore(notice("申請已送出（申請編號 " + res.no + "），審核結果將寄至您的學校信箱。", "ok"), app.children[1]);
         window.scrollTo({ top: app.offsetTop - 80 });
       }).catch(function (err) {
         submit.disabled = false;
@@ -381,8 +381,8 @@
       message
     ]);
     return el("section", { class: "borrow-section" }, [
-      el("h2", { text: "新申請" }),
-      el("p", { class: "borrow-hint", text: "最早可以借 " + minDay.replace(/-/g, "/") + " 以後的器材。" }),
+      el("h2", { text: "填寫借用申請" }),
+      el("p", { class: "borrow-hint", text: "依規定須於借用日 3 天前提出申請，可申請 " + minDay.replace(/-/g, "/") + " 起之借用。" }),
       form
     ]);
   }
@@ -397,12 +397,12 @@
           var actions = [];
           if (r.status === "待器材長審核" || r.status === "待會長審核") {
             actions.push(actionButton("取消申請", "text", function () {
-              if (!confirm("確定取消 " + r.no + "？")) return Promise.resolve();
+              if (!confirm("確定取消申請 " + r.no + "？取消後無法復原。")) return Promise.resolve();
               return post({ action: "borrowCancel", no: r.no }).then(load);
             }));
           }
           return requestCard(r, actions);
-        }) : [S.statusMessage("還沒有申請紀錄。")]);
+        }) : [S.statusMessage("目前無申請紀錄。")]);
       }).catch(function (err) {
         if (!err.handled) replace(box, [S.statusMessage("讀取失敗：" + err.message)]);
       });
@@ -411,6 +411,6 @@
     return el("section", { class: "borrow-section" }, [el("h2", { text: "我的申請" }), box]);
   }
 
-  if (!API) replace(app, [S.statusMessage("網站還沒有設定 Apps Script 網址。")]);
+  if (!API) replace(app, [S.statusMessage("網站尚未設定 Apps Script 網址。")]);
   else showSignin("");
 })();

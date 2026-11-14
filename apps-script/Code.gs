@@ -63,7 +63,7 @@ function doGet(e) {
     if (params.action === "votes") return json(publicVoteList());
     if (params.action === "vote") return json(publicVote(params.event));
     if (params.action === "equipment") return json(publicEquipment(params.start, params.end));
-    throw new Error("不支援的操作");
+    throw new Error("不支援此操作");
   } catch (err) {
     return json({ ok: false, error: err.message });
   }
@@ -193,7 +193,7 @@ function handleOfficer(input) {
   try {
     var officer = verifyOfficer(input.token);
     var actions = { me: officerMe, roster: officerRoster, lookup: officerLookup, pay: officerPay, "void": officerVoid, today: officerToday };
-    if (!actions[input.action]) throw new Error("不支援的操作");
+    if (!actions[input.action]) throw new Error("不支援此操作");
     return actions[input.action](input, officer);
   } catch (err) {
     return { ok: false, error: err.message, auth: Boolean(err.auth), denied: Boolean(err.denied) };
@@ -407,7 +407,7 @@ function handleVoter(input) {
       };
     }
     if (input.action === "voteSubmit") return submitVote(event, voter, input.answers || {});
-    throw new Error("不支援的操作");
+    throw new Error("不支援此操作");
   } catch (err) {
     return { ok: false, error: err.message, auth: Boolean(err.auth), denied: Boolean(err.denied) };
   }
@@ -581,11 +581,11 @@ function handleBorrow(input) {
     if (action === "borrowSubmit") return borrowSubmit(who, input);
     if (action === "borrowCancel") return borrowCancel(who, input);
     if (action === "borrowList") {
-      if (!who.officer) throw authError("只有幹部可以查看審核清單", true);
+      if (!who.officer) throw authError("僅限幹部查看審核清單", true);
       return { ok: true, roles: who.roles, items: borrowRequests().reverse().slice(0, 200).map(publicRequest) };
     }
     if (action === "borrowAct") return borrowAct(who, input);
-    throw new Error("不支援的操作");
+    throw new Error("不支援此操作");
   } catch (err) {
     return { ok: false, error: err.message, auth: Boolean(err.auth), denied: Boolean(err.denied) };
   }
@@ -607,7 +607,7 @@ function borrowWho(email) {
     who.roles.equip = developer || title.indexOf("器材") >= 0;
     who.roles.president = developer || title === "會長";
   }
-  if (!who.student && !who.officer) throw authError("請用學校信箱（s學號@student.szmc.edu.tw）登入申請借用", true);
+  if (!who.student && !who.officer) throw authError("申請借用請以學校信箱（s學號@student.szmc.edu.tw）登入", true);
   return who;
 }
 
@@ -622,7 +622,7 @@ function borrowWhoResult(who) {
 }
 
 function borrowSubmit(who, input) {
-  if (!who.student) throw new Error("請用學校信箱登入申請借用");
+  if (!who.student) throw new Error("申請借用請以學校信箱登入");
   var unit = text(input.unit).slice(0, 50);
   var phone = text(input.phone).slice(0, 30);
   var purpose = text(input.purpose).slice(0, 500);
@@ -630,26 +630,26 @@ function borrowSubmit(who, input) {
   var name = text(input.name).slice(0, 30) || who.student.name;
   if (!unit) throw new Error("請填寫借用單位");
   if (!name) throw new Error("請填寫借用人姓名");
-  if (!/^[0-9+\-\s()#]{8,}$/.test(phone)) throw new Error("請填寫正確的聯絡電話");
+  if (!/^[0-9+\-\s()#]{8,}$/.test(phone)) throw new Error("聯絡電話格式不正確");
   if (!purpose) throw new Error("請填寫用途說明");
   if (!place) throw new Error("請填寫使用地點");
   var range = dateRange(input.start, input.end);
   var earliest = addDays(today(), BORROW_NOTICE_DAYS);
-  if (range.start < earliest) throw new Error("請在借用日前 " + BORROW_NOTICE_DAYS + " 天提出申請（最早可借 " + earliest + "）");
+  if (range.start < earliest) throw new Error("依規定須於借用日 " + BORROW_NOTICE_DAYS + " 天前提出申請，可申請 " + earliest + " 起之借用");
 
   var catalog = {};
   equipmentList().forEach(function (item) { catalog[item.name] = item; });
   var items = (input.items || []).map(function (i) {
     return { name: text(i.name), qty: Math.floor(Number(i.qty)) };
   }).filter(function (i) { return i.qty > 0; });
-  if (!items.length) throw new Error("請選擇要借用的器材");
+  if (!items.length) throw new Error("請選擇借用器材");
 
   return withLock(function () {
     items.forEach(function (i) {
       var item = catalog[i.name];
-      if (!item) throw new Error("器材清單裡沒有「" + i.name + "」");
+      if (!item) throw new Error("器材清單中查無「" + i.name + "」");
       var left = item.total - bookedQuantity(i.name, range.start, range.end, "");
-      if (i.qty > left) throw new Error("「" + i.name + "」在這段期間只剩 " + Math.max(left, 0) + " " + item.unit);
+      if (i.qty > left) throw new Error("「" + i.name + "」於本期間僅剩 " + Math.max(left, 0) + " " + item.unit + "可借");
     });
     var no = nextBorrowNo();
     getSheet("borrows", true).appendRow(rowFor("borrows", {
@@ -674,22 +674,22 @@ function borrowSubmit(who, input) {
 function borrowCancel(who, input) {
   return withLock(function () {
     var r = findRequest(input.no);
-    if (r.email !== who.email) throw new Error("只能取消自己的申請");
-    if ([BORROW.equipApprove, BORROW.presidentApprove].indexOf(r.status) < 0) throw new Error("這筆申請已經核准或結束，不能取消，請聯絡器材長");
+    if (r.email !== who.email) throw new Error("僅能取消本人之申請");
+    if ([BORROW.equipApprove, BORROW.presidentApprove].indexOf(r.status) < 0) throw new Error("本申請已核准或已結案，無法取消，請洽器材長");
     setRequest(r, { "狀態": BORROW.cancelled });
     return { ok: true };
   });
 }
 
 function borrowAct(who, input) {
-  if (!who.officer) throw authError("只有幹部可以審核", true);
+  if (!who.officer) throw authError("僅限幹部進行審核", true);
   var act = text(input.act);
   var stamp = who.officer.name + " " + formatDate(new Date(), "yyyy/MM/dd HH:mm");
   return withLock(function () {
     var r = findRequest(input.no);
     if (act === "approve") {
       if (r.status === BORROW.equipApprove) {
-        if (!who.roles.equip) throw new Error("這一關要由器材長審核");
+        if (!who.roles.equip) throw new Error("此階段須由器材長審核");
         var left = shortages(r);
         if (left) throw new Error(left);
         setRequest(r, { "狀態": BORROW.presidentApprove, "器材長審核": "同意（" + stamp + "）" });
@@ -700,7 +700,7 @@ function borrowAct(who, input) {
           button: "前往審核"
         });
       } else if (r.status === BORROW.presidentApprove) {
-        if (!who.roles.president) throw new Error("這一關要由會長審核");
+        if (!who.roles.president) throw new Error("此階段須由會長審核");
         setRequest(r, { "狀態": BORROW.approved, "會長審核": "同意（" + stamp + "）" });
         mailApplicant(r, "【器材借用】申請已核准 " + r.no, {
           title: "申請已核准",
@@ -709,12 +709,12 @@ function borrowAct(who, input) {
           note: "領取時請與承辦人員當面清點器材；器材若有遺失或損壞，需照價賠償。"
         });
       } else {
-        throw new Error("這筆申請目前是「" + r.status + "」，不能核准");
+        throw new Error("本申請目前狀態為「" + r.status + "」，無法核准");
       }
     } else if (act === "reject") {
-      if ([BORROW.equipApprove, BORROW.presidentApprove].indexOf(r.status) < 0) throw new Error("這筆申請目前是「" + r.status + "」，不能退回");
-      if (r.status === BORROW.equipApprove && !who.roles.equip) throw new Error("這一關要由器材長審核");
-      if (r.status === BORROW.presidentApprove && !who.roles.president) throw new Error("這一關要由會長審核");
+      if ([BORROW.equipApprove, BORROW.presidentApprove].indexOf(r.status) < 0) throw new Error("本申請目前狀態為「" + r.status + "」，無法退回");
+      if (r.status === BORROW.equipApprove && !who.roles.equip) throw new Error("此階段須由器材長審核");
+      if (r.status === BORROW.presidentApprove && !who.roles.president) throw new Error("此階段須由會長審核");
       var reason = text(input.reason).slice(0, 200);
       if (!reason) throw new Error("請填寫退回原因");
       var column = r.status === BORROW.equipApprove ? "器材長審核" : "會長審核";
@@ -729,10 +729,10 @@ function borrowAct(who, input) {
         note: "如有疑問，請洽應用英語科學會器材長。"
       });
     } else if (act === "lend") {
-      if (r.status !== BORROW.approved) throw new Error("核准後才能借出");
+      if (r.status !== BORROW.approved) throw new Error("申請核准後方可登記借出");
       setRequest(r, { "狀態": BORROW.lent, "借出紀錄": stamp });
     } else if (act === "return") {
-      if (r.status !== BORROW.lent) throw new Error("借出後才能登記歸還");
+      if (r.status !== BORROW.lent) throw new Error("器材借出後方可登記歸還");
       setRequest(r, { "狀態": BORROW.returned, "歸還驗收": stamp, "歸還備註": safeText(text(input.note).slice(0, 200)) });
       mailApplicant(r, "【器材借用】器材已歸還 " + r.no, {
         title: "器材已歸還",
@@ -741,7 +741,7 @@ function borrowAct(who, input) {
         extra: text(input.note) ? [["驗收備註", text(input.note)]] : []
       });
     } else {
-      throw new Error("不支援的操作");
+      throw new Error("不支援此操作");
     }
     return { ok: true };
   });
@@ -755,7 +755,7 @@ function shortages(r) {
     var item = catalog[i.name];
     return !item || i.qty > item.total - bookedQuantity(i.name, r.start, r.end, r.no);
   }).map(function (i) { return i.name; });
-  return problems.length ? "這段期間數量不足：" + problems.join("、") : "";
+  return problems.length ? "本期間數量不足：" + problems.join("、") : "";
 }
 
 function equipmentList() {
@@ -806,7 +806,7 @@ function publicRequest(r) {
 
 function findRequest(no) {
   var r = borrowRequests().filter(function (x) { return x.no === text(no); })[0];
-  if (!r) throw new Error("找不到這筆申請");
+  if (!r) throw new Error("查無此申請");
   return r;
 }
 
@@ -928,7 +928,7 @@ function dateRange(start, end) {
   var s = dayText(start);
   var e = dayText(end);
   if (!s || !e) throw new Error("請選擇借用期間");
-  if (e < s) throw new Error("結束日期不能早於開始日期");
+  if (e < s) throw new Error("結束日期不得早於開始日期");
   return { start: s, end: e };
 }
 
