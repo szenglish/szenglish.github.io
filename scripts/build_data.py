@@ -124,6 +124,7 @@ def build_events():
             "endDate": entry.get("endDate", ""),
             "place": entry.get("place", ""),
             "link": entry.get("link", ""),
+            "report": str(entry.get("report") or "").strip(),
         })
     return events
 

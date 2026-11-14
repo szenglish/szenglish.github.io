@@ -60,9 +60,13 @@
     return upcoming.concat(past);
   }
 
-  function eventItem(item) {
+  // 已結束、而且在後台選了「相關報導」的活動，卡片連到那篇報導。
+  // 報導是草稿或被刪掉時 report 找不到文章，就不顯示連結。
+  function eventItem(item, news) {
     var upcoming = (item.endDate || item.date) >= today();
     var parts = item.date.split("/");
+    var report = !upcoming && item.report ? news.filter(function (n) { return n.id === item.report; })[0] : null;
+    var href = report ? S.articleUrl(report) : item.link;
     var content = [
       el("div", { class: "event-date" + (upcoming ? " is-upcoming" : "") }, [
         el("span", { class: "event-day", text: parts[1] + "." + parts[2] }),
@@ -72,11 +76,12 @@
         upcoming ? el("span", { class: "event-status", text: "即將舉行" }) : null,
         el("h3", { class: "event-title", text: item.title }),
         item.endDate ? el("p", { class: "event-place", text: "至 " + item.endDate }) : null,
-        item.place ? el("p", { class: "event-place", text: item.place }) : null
+        item.place ? el("p", { class: "event-place", text: item.place }) : null,
+        report ? el("span", { class: "event-report", text: "查看報導 →" }) : null
       ])
     ];
-    var box = item.link
-      ? el("a", { class: "event", href: item.link }, content)
+    var box = href
+      ? el("a", { class: "event", href: href }, content)
       : el("div", { class: "event" }, content);
     return el("li", {}, [box]);
   }
@@ -95,7 +100,7 @@
       var term = currentTerm(data.members);
       if (term) document.getElementById("hero-term").textContent = "第 " + term + " 屆";
       replace(eventsTarget, data.events.length
-        ? [el("ul", { class: "event-list" }, sortEvents(data.events).slice(0, 4).map(eventItem))]
+        ? [el("ul", { class: "event-list" }, sortEvents(data.events).slice(0, 4).map(function (item) { return eventItem(item, data.news); }))]
         : [S.statusMessage("目前沒有活動資訊。")]);
       if (!news.length) return replace(target, [S.statusMessage("目前還沒有新聞。")]);
       replace(target, [
@@ -233,7 +238,7 @@
       if (index < 0) {
         return replace(target, [
           S.statusMessage("找不到這篇文章，可能已經移除。"),
-          el("a", { class: "back-link", href: "news.html", text: "← 回應英月刊" })
+          el("a", { class: "back-link", href: "news.html", text: "← 返回單元首頁" })
         ]);
       }
       var item = news[index];
@@ -247,7 +252,7 @@
       document.title = item.title + "｜應用英語科學會";
 
       replace(target, [
-        el("a", { class: "back-link", href: "news.html", text: "← 回應英月刊" }),
+        el("a", { class: "back-link", href: "news.html", text: "← 返回單元首頁" }),
         el("header", { class: "article-head" }, [
           el("time", { class: "date", datetime: item.date.replace(/\//g, "-"), text: item.date }),
           el("h1", { text: item.title }),
@@ -276,7 +281,9 @@
             el("span", { class: "pager-label", text: "較舊 →" }),
             el("span", { text: older.title })
           ]) : null
-        ])
+        ]),
+        // 讀完文章的人在頁面底部，這裡也放一個返回列表。
+        el("a", { class: "back-bottom", href: "news.html", text: "← 返回單元首頁" })
       ]);
     }, function () {
       replace(target, [S.statusMessage(LOAD_ERROR)]);
@@ -426,7 +433,40 @@
     return update;
   }
 
+  // 組織架構圖：結構很少變動，直接寫在這裡。新增或改名部門時改這裡。
+  var ORG = {
+    chain: ["首長室", "行政中心", "執行長"],
+    departments: ["秘書處", "企劃部", "廣宣部", "器材部", "財務部", "公關部"],
+    independent: { name: "選舉委員會", note: "獨立運作" }
+  };
+
+  function orgChart() {
+    var chain = ORG.chain.map(function (name) {
+      return el("li", { class: "org-node org-lead", text: name });
+    });
+    return el("figure", { class: "org-chart" }, [
+      el("ol", { class: "org-chain", "aria-label": "指揮層級" }, chain),
+      el("div", { class: "org-side" }, [
+        el("p", { class: "org-node org-independent" }, [
+          el("span", { text: ORG.independent.name }),
+          el("small", { text: ORG.independent.note })
+        ])
+      ]),
+      el("ul", { class: "org-depts", "aria-label": "執行部門" }, ORG.departments.map(function (name) {
+        return el("li", { class: "org-node org-dept", text: name });
+      })),
+      el("figcaption", { class: "visually-hidden", text: "應用英語科學會組織架構：首長室、行政中心、執行長，下設六個部門；選舉委員會獨立運作。" })
+    ]);
+  }
+
+  function renderOrgCharts() {
+    document.querySelectorAll(".org-chart-slot").forEach(function (slot) {
+      replace(slot, [orgChart()]);
+    });
+  }
+
   function renderAbout() {
+    renderOrgCharts();
     var updateSubNav = setupSubNav();
     var leadership = document.getElementById("leadership-list");
     var departments = document.getElementById("department-list");
@@ -578,6 +618,54 @@
     return match ? match[1].toUpperCase() : "檔案";
   }
 
+  // 可以在站內預覽的網址：Google 雲端單一檔案、Google 文件，以及網站上的 PDF。
+  // 雲端「資料夾」沒辦法預覽，維持開新分頁。
+  function previewUrl(url) {
+    var drive = /^https:\/\/drive\.google\.com\/file\/d\/([\w-]+)/.exec(url);
+    if (drive) return "https://drive.google.com/file/d/" + drive[1] + "/preview";
+    var docs = /^https:\/\/docs\.google\.com\/(document|spreadsheets|presentation)\/d\/([\w-]+)/.exec(url);
+    if (docs) return "https://docs.google.com/" + docs[1] + "/d/" + docs[2] + "/preview";
+    if (/^assets\/.+\.pdf$/i.test(url)) return url;
+    return null;
+  }
+
+  // 手機上嵌入的文件很難捲動，只有寬螢幕才在站內展開。
+  var wideScreen = window.matchMedia("(min-width: 768px)");
+  var previewCount = 0;
+
+  function docItem(file) {
+    var preview = previewUrl(file.url);
+    var link = el("a", { class: "doc", href: file.url, target: "_blank", rel: "noopener" }, [
+      el("span", { class: "doc-type", text: fileType(file.name) }),
+      el("span", { class: "doc-name", text: file.name.replace(/\.[a-z0-9]+$/i, "") }),
+      el("span", { class: "doc-arrow", "aria-hidden": "true", text: "↗" })
+    ]);
+    var item = el("li", {}, [link]);
+    if (!preview) return item;
+
+    var panelId = "doc-preview-" + (++previewCount);
+    var panel = null;
+    item.classList.add("can-preview");
+    link.addEventListener("click", function (event) {
+      if (!wideScreen.matches) return;
+      event.preventDefault();
+      var open = link.getAttribute("aria-expanded") === "true";
+      if (!panel) {
+        panel = el("div", { class: "doc-preview", id: panelId }, [
+          el("iframe", { src: preview, title: file.name + " 預覽", loading: "lazy", allow: "autoplay" }),
+          el("div", { class: "doc-preview-bar" }, [
+            el("a", { href: file.url, target: "_blank", rel: "noopener", text: "在新分頁開啟 ↗" })
+          ])
+        ]);
+        item.appendChild(panel);
+        link.setAttribute("aria-controls", panelId);
+      }
+      panel.hidden = open;
+      link.setAttribute("aria-expanded", String(!open));
+    });
+    return item;
+  }
+
   function renderDocuments() {
     var target = document.getElementById("documents");
     S.loadData(function (data) {
@@ -593,15 +681,7 @@
       replace(target, groups.length ? groups.map(function (group) {
         return el("section", { class: "doc-group" }, [
           el("h2", { text: group.category }),
-          el("ul", { class: "doc-list" }, group.files.map(function (file) {
-            return el("li", {}, [
-              el("a", { class: "doc", href: file.url, target: "_blank", rel: "noopener" }, [
-                el("span", { class: "doc-type", text: fileType(file.name) }),
-                el("span", { class: "doc-name", text: file.name.replace(/\.[a-z0-9]+$/i, "") }),
-                el("span", { class: "doc-arrow", "aria-hidden": "true", text: "↗" })
-              ])
-            ]);
-          }))
+          el("ul", { class: "doc-list" }, group.files.map(docItem))
         ]);
       }) : [S.statusMessage("目前還沒有文件。")]);
     }, function () {
@@ -609,8 +689,72 @@
     });
   }
 
+  // 大數字統計：數字本身就是重點，不需要圖表。
+  function statRow(stats) {
+    return el("dl", { class: "stat-row" }, stats.map(function (stat) {
+      return el("div", { class: "stat" }, [
+        el("dt", { class: "stat-label", lang: "en", text: stat.label }),
+        el("dd", { class: "stat-value" }, [
+          el("span", { class: "stat-number", text: String(stat.value) }),
+          el("span", { class: "stat-unit", text: stat.unit })
+        ]),
+        el("dd", { class: "stat-note", text: stat.note })
+      ]);
+    }));
+  }
+
+  // 每年報導篇數：單一數列，用網站主色；滑過或聚焦顯示數值，另附表格給螢幕閱讀器。
+  function yearChart(rows) {
+    var max = Math.max.apply(null, rows.map(function (row) { return row.count; }));
+    return el("figure", { class: "year-chart" }, [
+      el("figcaption", { class: "year-chart-title", text: "每年活動報導篇數" }),
+      el("div", { class: "year-bars", "aria-hidden": "true" }, rows.map(function (row) {
+        return el("div", { class: "year-col", tabindex: "0" }, [
+          el("span", { class: "year-value", text: String(row.count) }),
+          el("span", { class: "year-bar", style: "height:" + Math.max(4, row.count / max * 100) + "%" }),
+          el("span", { class: "year-tip", text: row.year + " 年：" + row.count + " 篇" }),
+          el("span", { class: "year-label", text: row.year })
+        ]);
+      })),
+      el("table", { class: "visually-hidden" }, [
+        el("thead", {}, [el("tr", {}, [el("th", { text: "年份" }), el("th", { text: "篇數" })])]),
+        el("tbody", {}, rows.map(function (row) {
+          return el("tr", {}, [el("td", { text: row.year }), el("td", { text: String(row.count) })]);
+        }))
+      ])
+    ]);
+  }
+
+  // 本屆幹部依部門分組，取代原本一行一人的表格。
+  function peopleByDept(members) {
+    var groups = [];
+    members.forEach(function (member) {
+      var group = groups[groups.length - 1];
+      if (!group || group.dept !== member.dept) {
+        group = { dept: member.dept, deptEn: member.deptEn, people: [] };
+        groups.push(group);
+      }
+      group.people.push(member);
+    });
+    return el("div", { class: "people-grid" }, groups.map(function (group) {
+      return el("section", { class: "people-card" }, [
+        el("h3", {}, [
+          el("span", { text: group.dept }),
+          group.deptEn ? el("small", { lang: "en", text: group.deptEn }) : null
+        ]),
+        el("ul", {}, group.people.map(function (member) {
+          return el("li", {}, [
+            el("span", { class: "people-title", text: member.title }),
+            el("span", { class: "people-name", text: member.name })
+          ]);
+        }))
+      ]);
+    }));
+  }
+
   // 評鑑專區：把幹部、活動和文件整理在同一頁，資料和網站其他頁面共用。
   function renderEvaluation() {
+    renderOrgCharts();
     var updateSubNav = setupSubNav();
     var organization = document.getElementById("organization-list");
     var activities = document.getElementById("activity-list");
@@ -619,29 +763,37 @@
       var term = currentTerm(data.members);
       if (term) document.getElementById("evaluation-term").textContent = "第 " + term + " 屆應用英語科學會 成果展示";
 
-      var rows = data.members.filter(function (member) {
+      var current = data.members.filter(function (member) {
         return Number(member.term) === term;
-      }).map(function (member) {
-        return el("tr", {}, [
-          el("td", { text: member.dept }),
-          el("td", { text: member.title }),
-          el("td", { text: member.name })
-        ]);
       });
-      replace(organization, rows.length ? [
-        el("div", { class: "org-table-wrap" }, [
-          el("table", { class: "org-table" }, [
-            el("thead", {}, [el("tr", {}, [
-              el("th", { scope: "col", text: "單位" }),
-              el("th", { scope: "col", text: "職稱" }),
-              el("th", { scope: "col", text: "姓名" })
-            ])]),
-            el("tbody", {}, rows)
-          ])
-        ])
-      ] : [S.statusMessage("目前還沒有幹部資料。")]);
+      var officers = current.filter(function (member) { return member.dept !== "指導老師"; });
+      replace(document.getElementById("org-stats"), [statRow([
+        { value: term, unit: "屆", label: "Term", note: "科學會傳承屆數" },
+        { value: officers.length, unit: "位", label: "Officers", note: "本屆幹部" },
+        { value: ORG.departments.length, unit: "個", label: "Departments", note: "執行部門" }
+      ])]);
+      replace(organization, current.length
+        ? [peopleByDept(current)]
+        : [S.statusMessage("目前還沒有幹部資料。")]);
 
       var news = listed(data.news);
+      var years = {};
+      var photos = 0;
+      news.forEach(function (item) {
+        var y = item.date.slice(0, 4);
+        years[y] = (years[y] || 0) + 1;
+        photos += (item.cover ? 1 : 0) + (item.body.match(/!\[/g) || []).length;
+        (item.photos || []).forEach(function (group) { photos += group.images.length; });
+      });
+      var yearList = Object.keys(years).sort();
+      replace(document.getElementById("activity-stats"), news.length ? [
+        statRow([
+          { value: news.length, unit: "篇", label: "Reports", note: "活動報導" },
+          { value: photos, unit: "張", label: "Photos", note: "活動照片紀錄" },
+          { value: yearList.length, unit: "年", label: "Years", note: yearList[0] + "–" + yearList[yearList.length - 1] + " 持續紀錄" }
+        ]),
+        yearChart(yearList.map(function (y) { return { year: y, count: years[y] }; }))
+      ] : []);
       replace(activities, news.length
         ? [el("div", { class: "card-grid evaluation-cards" }, news.map(card))]
         : [S.statusMessage("目前還沒有活動報導。")]);

@@ -100,10 +100,19 @@ collections:
         required: false
         hint: 只有一天的活動請留空。
       - { name: place, label: 地點, required: false }
+      - name: report
+        label: 相關報導
+        widget: relation
+        collection: news
+        value_field: "{{slug}}"
+        search_fields: [title]
+        display_fields: ["{{date}}｜{{title}}"]
+        required: false
+        hint: 活動結束、報導寫好後，在這裡選那篇文章，首頁卡片會出現「查看報導」。
       - name: link
         label: 相關連結
         required: false
-        hint: 可以貼報名表或活動報導的網址。
+        hint: 可以貼報名表的網址（活動還沒舉行時使用）。
 
   - name: members
     label: 幹部
