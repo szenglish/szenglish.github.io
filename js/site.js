@@ -89,7 +89,7 @@
         el("nav", { "aria-label": "主要導覽" }, [toggle, list])
       ])
     ]);
-    var skip = el("a", { class: "skip-link", href: "#main", text: "跳到主要內容" });
+    var skip = el("a", { class: "skip-link", href: location.pathname + location.search + "#main", text: "跳到主要內容" });
     document.body.insertBefore(header, document.body.firstChild);
     document.body.insertBefore(skip, header);
     document.querySelector("main").id = "main";
@@ -148,8 +148,9 @@
       });
   }
 
+  // 文章網址用 news/<id>/ 分享頁（部署時產生），貼到 LINE、Facebook 才有預覽圖。
   function articleUrl(item) {
-    return "article.html?id=" + encodeURIComponent(item.id);
+    return "news/" + encodeURIComponent(item.id) + "/";
   }
 
   function coverImage(item) {

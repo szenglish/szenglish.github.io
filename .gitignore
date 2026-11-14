@@ -1,3 +1,5 @@
 # 部署時由 scripts/build_data.py 自動產生
 data/site.json
+# 文章分享頁（部署時產生）；開頭的 / 表示只忽略最上層的 news/，不影響 content/news/
+/news/
 .claude/

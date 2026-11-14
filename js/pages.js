@@ -3,7 +3,6 @@
   var S = window.SZAE;
   var el = S.el;
   var LOAD_ERROR = "資料暫時載不出來，請稍後再試，或到 Instagram 查看最新消息。";
-  var NEWS_PAGE_SIZE = 9;
 
   function replace(target, nodes) {
     target.textContent = "";
@@ -116,24 +115,13 @@
     var filter = document.getElementById("year-filter");
     var all = [];
     var year = "全部";
-    var shown = NEWS_PAGE_SIZE;
 
     function draw() {
       var items = all.filter(function (item) {
         return year === "全部" || item.date.slice(0, 4) === year;
       });
-      var cards = items.slice(1, shown + 1);
-      var remaining = items.length - 1 - cards.length;
-      var more = null;
-      if (remaining > 0) {
-        more = el("button", { class: "load-more", type: "button", text: "載入更多（還有 " + remaining + " 篇）" });
-        more.addEventListener("click", function () {
-          shown += NEWS_PAGE_SIZE;
-          draw();
-        });
-      }
       replace(target, items.length
-        ? [leadStory(items[0], "lead lead-wide"), el("div", { class: "card-grid" }, cards.map(card)), more]
+        ? [leadStory(items[0], "lead lead-wide"), el("div", { class: "card-grid" }, items.slice(1).map(card))]
         : [S.statusMessage("目前還沒有新聞。")]);
     }
 
@@ -147,7 +135,6 @@
         var button = el("button", { type: "button", "aria-pressed": String(y === year), text: y });
         button.addEventListener("click", function () {
           year = y;
-          shown = NEWS_PAGE_SIZE;
           drawFilter();
           draw();
         });
@@ -164,12 +151,62 @@
     });
   }
 
+  // 內文照片獨立成一塊，後台的「Alt Text」（沒填時用 Title）當作照片下方的說明。
+  function captionImages(box) {
+    box.querySelectorAll("p").forEach(function (p) {
+      var imgs = p.querySelectorAll("img");
+      if (!imgs.length) return;
+      var figures = Array.prototype.map.call(imgs, function (img) {
+        var caption = (img.getAttribute("alt") || img.getAttribute("title") || "").trim();
+        img.loading = "lazy";
+        img.removeAttribute("title");
+        if (!caption) img.alt = "文章照片";
+        var holder = img.parentNode.tagName === "A" ? img.parentNode : img;
+        holder.remove();
+        return el("figure", { class: "body-photo" }, [
+          holder,
+          caption ? el("figcaption", { text: caption }) : null
+        ]);
+      });
+      var after = p.nextSibling;
+      figures.forEach(function (figure) { p.parentNode.insertBefore(figure, after); });
+      if (!p.textContent.trim()) p.remove();
+    });
+  }
+
+  // 一段裡只有一個 YouTube 網址時，換成影片播放器。
+  function youtubeId(url) {
+    var m = /^https?:\/\/(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([\w-]{11})/.exec(url);
+    return m ? m[1] : null;
+  }
+
+  function embedVideos(box) {
+    box.querySelectorAll("p").forEach(function (p) {
+      var links = p.querySelectorAll("a");
+      var text = p.textContent.trim();
+      var url = links.length === 1 ? links[0].href : (links.length === 0 ? text : "");
+      var id = youtubeId(url);
+      if (!id || (links.length === 1 && text !== links[0].textContent.trim())) return;
+      p.replaceWith(el("div", { class: "video-embed" }, [
+        el("iframe", {
+          src: "https://www.youtube-nocookie.com/embed/" + id,
+          title: "YouTube 影片",
+          loading: "lazy",
+          allow: "accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen",
+          allowfullscreen: "",
+          referrerpolicy: "strict-origin-when-cross-origin"
+        })
+      ]));
+    });
+  }
+
   // 內文是後台寫入的 Markdown；排版工具載入失敗時退回純文字段落。
   function bodyNodes(body) {
     if (window.marked && window.DOMPurify) {
       var box = el("div");
       box.innerHTML = window.DOMPurify.sanitize(window.marked.parse(body));
-      box.querySelectorAll("img").forEach(function (img) { img.loading = "lazy"; });
+      captionImages(box);
+      embedVideos(box);
       box.querySelectorAll("a[href^='http']").forEach(function (link) {
         link.target = "_blank";
         link.rel = "noopener";
@@ -186,7 +223,9 @@
 
   function renderArticle() {
     var target = document.getElementById("article");
-    var id = new URLSearchParams(location.search).get("id");
+    // 分享頁是 news/<id>/，舊連結是 article.html?id=<id>，兩種都支援。
+    var pathId = /\/news\/([^/]+)\/?$/.exec(location.pathname);
+    var id = new URLSearchParams(location.search).get("id") || (pathId && decodeURIComponent(pathId[1]));
 
     S.loadData(function (data) {
       var news = data.news;
@@ -218,14 +257,12 @@
         el("div", { class: "article-body" }, item.body
           ? bodyNodes(item.body)
           : [el("p", { text: item.excerpt })]),
-        item.sourceUrl ? el("p", { class: "source-note" }, [
-          el("span", { text: "這篇尚未搬到新網站。" }),
-          el("a", { href: item.sourceUrl, text: "到現有網站閱讀全文 →" })
-        ]) : null,
-        (item.photos || []).length ? el("div", { class: "gallery" }, item.photos.map(function (group) {
+        (item.photos || []).length ? el("div", { class: "gallery" + (item.photoNumbers === false ? "" : " numbered") }, item.photos.map(function (group) {
           return el("figure", { class: "photo-group" }, [
             el("div", { class: "photo-group-images" }, group.images.map(function (src) {
-              return el("img", { src: src, alt: group.caption || "活動照片", loading: "lazy" });
+              return el("div", { class: "photo-item" }, [
+                el("img", { src: src, alt: group.caption || "活動照片", loading: "lazy" })
+              ]);
             })),
             group.caption ? el("figcaption", { text: group.caption }) : null
           ]);

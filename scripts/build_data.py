@@ -1,16 +1,23 @@
-"""把 content/ 裡的內容檔合併成網站讀取的 data/site.json。
+"""把 content/ 裡的內容檔合併成網站讀取的 data/site.json，
+並替每篇文章產生 news/<id>/ 分享頁，讓 LINE、Facebook 貼連結時有標題和預覽圖。
 
 用法：python scripts/build_data.py
 部署時 GitHub Actions 會自動執行，平常不用手動跑。
 """
+import html
 import json
 import re
+import shutil
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 CONTENT = ROOT / "content"
 OUTPUT = ROOT / "data" / "site.json"
+SHARE_DIR = ROOT / "news"
+SITE_URL = "https://szenglish.github.io"
+SITE_NAME = "樹人醫專應用英語科學會"
+DEFAULT_SHARE_IMAGE = "assets/images/share.jpg"
 EXCERPT_LENGTH = 90
 
 # 部門的顯示順序與英文名稱。新增部門時，這裡和 admin/config.yml 都要加。
@@ -97,6 +104,8 @@ def build_news():
             "body": body,
             "cover": asset_path(entry.get("cover")),
             "photos": photo_groups(entry.get("photos")),
+            # 沒設定過的舊文章預設顯示照片編號。
+            "photoNumbers": entry.get("photoNumbers") is not False,
             "sourceUrl": entry.get("sourceUrl", ""),
             "unlisted": visibility == "unlisted",
         })
@@ -147,7 +156,7 @@ def build_members():
 
 
 def build_documents():
-    categories = ["組織章程", "財務部", "器材部", "其他"]
+    categories = ["法規", "會議紀錄", "財務報表", "器材部", "表單下載", "其他"]
     documents = []
     for entry in load_entries("documents"):
         if not entry.get("title") or not entry.get("file"):
@@ -167,6 +176,62 @@ def build_documents():
     return documents
 
 
+def share_image(item, folder):
+    """把封面裁成 1200×630 的 JPG（LINE 和 Facebook 預覽圖的標準比例）。
+    沒有安裝 Pillow 或封面讀不到時，改用網站預設分享圖。"""
+    cover = ROOT / item["cover"] if item["cover"] and not item["cover"].startswith("http") else None
+    if cover and cover.is_file():
+        try:
+            from PIL import Image, ImageOps
+            with Image.open(cover) as image:
+                image = ImageOps.fit(image.convert("RGB"), (1200, 630), Image.LANCZOS, centering=(0.5, 0.4))
+                image.save(folder / "share.jpg", "JPEG", quality=82, optimize=True, progressive=True)
+            return f"news/{item['id']}/share.jpg"
+        except ImportError:
+            pass
+        except OSError as error:
+            print(f"分享圖產生失敗 {item['id']}：{error}", file=sys.stderr)
+    return DEFAULT_SHARE_IMAGE
+
+
+def share_tags(title, description, url, image, extra=""):
+    attr = lambda value: html.escape(value, quote=True)
+    return (
+        f'  <meta name="description" content="{attr(description)}">\n'
+        f'  <link rel="canonical" href="{attr(url)}">\n'
+        f'  <meta property="og:site_name" content="{SITE_NAME}">\n'
+        f'  <meta property="og:locale" content="zh_TW">\n'
+        f'  <meta property="og:type" content="article">\n'
+        f'  <meta property="og:title" content="{attr(title)}">\n'
+        f'  <meta property="og:description" content="{attr(description)}">\n'
+        f'  <meta property="og:url" content="{attr(url)}">\n'
+        f'  <meta property="og:image" content="{attr(SITE_URL + "/" + image)}">\n'
+        f'  <meta property="og:image:width" content="1200">\n'
+        f'  <meta property="og:image:height" content="630">\n'
+        f'  <meta name="twitter:card" content="summary_large_image">\n'
+        + extra
+    )
+
+
+def build_share_pages(news):
+    """每篇文章一個 news/<id>/index.html：內容和 article.html 相同，
+    只是 <head> 先寫好標題、摘要和預覽圖，社群網站的爬蟲不用執行 JavaScript 就讀得到。"""
+    template = (ROOT / "article.html").read_text(encoding="utf-8")
+    if SHARE_DIR.exists():
+        shutil.rmtree(SHARE_DIR)
+    for item in news:
+        folder = SHARE_DIR / item["id"]
+        folder.mkdir(parents=True)
+        url = f"{SITE_URL}/news/{item['id']}/"
+        title = f"{item['title']}｜應用英語科學會"  # 和其他頁面的分頁標題格式一致
+        robots = '  <meta name="robots" content="noindex">\n' if item["unlisted"] else ""
+        tags = share_tags(item["title"], item["excerpt"] or SITE_NAME, url, share_image(item, folder), robots)
+        page = template.replace('<meta charset="utf-8">', '<meta charset="utf-8">\n  <base href="/">', 1)
+        page = re.sub(r"<title>.*?</title>\n", lambda m: f"<title>{html.escape(title)}</title>\n" + tags, page, count=1)
+        (folder / "index.html").write_text(page, encoding="utf-8")
+    return len(news)
+
+
 def main():
     site = {
         "news": build_news(),
@@ -178,6 +243,7 @@ def main():
     OUTPUT.write_text(json.dumps(site, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     counts = "、".join(f"{key} {len(value)} 筆" for key, value in site.items())
     print(f"已產生 {OUTPUT.relative_to(ROOT)}：{counts}")
+    print(f"已產生 {build_share_pages(site['news'])} 個文章分享頁")
 
 
 if __name__ == "__main__":

@@ -740,26 +740,6 @@ a.event:hover .event-title { color: var(--red); }
   line-height: 1.5;
 }
 
-.load-more {
-  display: block;
-  min-height: 48px;
-  margin: 40px auto 0;
-  padding: 0 32px;
-  background: var(--white);
-  border: 1px solid var(--navy);
-  color: var(--navy);
-  font: inherit;
-  font-size: 15px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: background-color .2s ease, color .2s ease;
-}
-
-.load-more:hover {
-  background: var(--navy);
-  color: var(--white);
-}
-
 /* 關於我們 */
 .sub-nav {
   position: sticky;
@@ -1366,8 +1346,9 @@ html:has(.sub-nav) { scroll-padding-top: 150px; }
 .form-success p { margin-top: 4px; color: var(--muted); }
 
 /* 文章 */
+/* 文字、封面、影片、照片組都對齊同一個寬度（內容區 860px）。 */
 .article {
-  max-width: 820px;
+  max-width: calc(860px + 2 * var(--gutter));
   margin: 0 auto;
   padding: clamp(20px, 3vw, 32px) var(--gutter) clamp(56px, 8vw, 96px);
 }
@@ -1411,6 +1392,11 @@ html:has(.sub-nav) { scroll-padding-top: 150px; }
 
 .article-body { margin-top: 32px; }
 
+/* 電腦版欄寬 860px，字放大到 18px，每行約 48 字。 */
+@media (min-width: 641px) {
+  .article-body { font-size: 18px; }
+}
+
 .article-body p { margin-bottom: 1.3em; }
 
 .article-body h2 {
@@ -1443,19 +1429,31 @@ html:has(.sub-nav) { scroll-padding-top: 150px; }
 
 .article-body a { color: var(--red); font-weight: 700; }
 
-.source-note {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 12px;
-  padding: 16px 20px;
-  background: var(--mist);
-  border-left: 4px solid var(--red);
+.body-photo { margin: 1.5em 0; }
+
+.article-body .body-photo img { margin: 0; }
+
+.body-photo figcaption,
+.photo-group figcaption {
+  margin-top: 10px;
+  color: var(--muted);
   font-size: 15px;
+  line-height: 1.7;
 }
 
-.source-note a {
-  color: var(--navy);
-  font-weight: 700;
+.video-embed {
+  position: relative;
+  margin: 1.5em 0;
+  aspect-ratio: 16 / 9;
+  background: var(--navy);
+}
+
+.video-embed iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
 }
 
 .gallery { margin-top: 28px; }
@@ -1470,19 +1468,39 @@ html:has(.sub-nav) { scroll-padding-top: 150px; }
   gap: 12px;
 }
 
-.photo-group-images:has(> img:only-child) { grid-template-columns: 1fr; }
+.photo-group-images:has(> .photo-item:only-child) { grid-template-columns: 1fr; }
 
 .photo-group-images img {
+  display: block;
   width: 100%;
   aspect-ratio: 3 / 2;
   object-fit: cover;
 }
 
-.photo-group figcaption {
-  margin-top: 10px;
-  color: var(--muted);
-  font-size: 15px;
-  line-height: 1.7;
+/* 照片左下角的編號，整篇文章連續編號。 */
+.gallery { counter-reset: photo; }
+
+.photo-item { position: relative; }
+
+.gallery.numbered .photo-item::after {
+  counter-increment: photo;
+  content: counter(photo);
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  min-width: 20px;
+  padding: 2px 4px 1px;
+  background: rgba(32, 39, 47, .85); /* --navy 半透明，任何照片上都看得清楚 */
+  color: var(--white);
+  font-family: var(--display);
+  font-size: 13px;
+  line-height: 17px;
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .photo-group-images { grid-template-columns: 1fr; }
+  .photo-group-images img { aspect-ratio: auto; }
 }
 
 .article-pager {

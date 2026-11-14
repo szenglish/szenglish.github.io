@@ -54,6 +54,12 @@ collections:
         fields:
           - { name: images, label: 照片, widget: image, multiple: true }
           - { name: caption, label: 照片說明, widget: text, required: false }
+      - name: photoNumbers
+        label: 照片編號
+        widget: boolean
+        default: true
+        required: false
+        hint: 開啟時，文章照片的左下角會顯示 1、2、3… 編號。
       - name: visibility
         label: 顯示方式
         widget: select
@@ -147,6 +153,6 @@ collections:
     sortable_fields: [category, title]
     fields:
       - { name: title, label: 文件名稱 }
-      - { name: category, label: 分類, widget: select, options: [組織章程, 財務部, 器材部, 其他] }
+      - { name: category, label: 分類, widget: select, options: [法規, 會議紀錄, 財務報表, 器材部, 表單下載, 其他] }
       - { name: file, label: 檔案, widget: file, hint: 上傳檔案，或貼上雲端硬碟的公開連結。 }
       - { name: order, label: 排序, widget: number, value_type: int, default: 1, hint: 數字小的排前面。 }
