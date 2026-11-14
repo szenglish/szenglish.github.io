@@ -479,13 +479,16 @@
     var leadership = document.getElementById("leadership-list");
     var departments = document.getElementById("department-list");
     var filter = document.getElementById("term-filter");
-    var LEADERS = ["指導老師", "正副會長", "執行長", "顧問"];
+    var advisors = document.getElementById("advisor-list");
+    var advisorSection = document.getElementById("advisors");
+    // 顧問不在指揮線上，和組織架構圖一致，獨立成「顧問團」一段。
+    var ADVISOR = "顧問";
+    var LEADERS = ["指導老師", "正副會長", "執行長"];
     var LEADER_EN = {
       "指導老師": "Supervisor",
       "會長": "President",
       "副會長": "Vice President",
-      "執行長": "CEO",
-      "顧問": "Consultant"
+      "執行長": "CEO"
     };
     var all = [];
     var term = 0;
@@ -494,7 +497,7 @@
       var people = all.filter(function (member) { return Number(member.term) === term; });
       var groups = [];
       people.filter(function (member) {
-        return LEADERS.indexOf(member.dept) < 0;
+        return LEADERS.indexOf(member.dept) < 0 && member.dept !== ADVISOR;
       }).forEach(function (member) {
         var group = groups.filter(function (item) { return item.zh === member.dept; })[0];
         if (!group) {
@@ -512,6 +515,21 @@
       if (people.length) renderTabs(leadership, leaders, "leader-panel", true);
       else replace(leadership, [S.statusMessage("目前還沒有幹部資料。")]);
       renderTabs(departments, groups, "dept-panel", false);
+
+      var advisorPeople = people.filter(function (member) { return member.dept === ADVISOR; });
+      advisorSection.hidden = !advisorPeople.length;
+      document.querySelector('.sub-nav a[href="#advisors"]').hidden = !advisorPeople.length;
+      if (advisorPeople.length) {
+        // 和領導團隊一樣，分頁顯示職稱；顧問不只一位時改顯示姓名，才分得出來。
+        var several = advisorPeople.length > 1;
+        renderTabs(advisors, advisorPeople.map(function (member) {
+          return {
+            zh: several ? member.name.replace(/\s+[A-Za-z].*$/, "") : (member.title || ADVISOR),
+            en: "Consultant",
+            members: [member]
+          };
+        }), "advisor-panel", true);
+      }
     }
 
     function drawFilter() {
