@@ -104,17 +104,22 @@ var FEEDBACK = { received: "已收到", working: "處理中", replied: "已回�
 var FEEDBACK_HIDE_DAYS = 30;
 var FEEDBACK_URL = "https://szenglish.github.io/feedback.html";
 
+// 防止表單被程式大量送出：同一個 Email 每天最多 3 則、全站每小時最多 20 則、每個案件每天最多補充 5 次。
+// 寄信額度剩不多時，先不寄受理通知，把額度留給器材借用與回覆通知。
+var FEEDBACK_LIMITS = { perEmailPerDay: 3, perHour: 20, followupsPerDay: 5, keepMailQuota: 30 };
+
 function handleFeedback(input) {
   try {
     var row = feedbackRow(input);
     if (!row) return { ok: true, no: "" };
     var no = withLock(function () {
+      checkFeedbackLimits(text(input.email));
       row["案件編號"] = nextFeedbackNo();
       getSheet("feedback", true).appendRow(rowFor("feedback", row));
       return row["案件編號"];
     });
     var c = { no: no, name: text(input.name), email: text(input.email), message: text(input.suggestion), dept: row["指定部門"] };
-    sendMail(c.email, "【應用英語科學會】意見反映受理通知（" + no + "）", {
+    if (mailQuotaLeft() > FEEDBACK_LIMITS.keepMailQuota) sendMail(c.email, "【應用英語科學會】意見反映受理通知（" + no + "）", {
       label: "意見反映通知", url: FEEDBACK_URL + "?no=" + no,
       title: "您的意見已收到",
       greeting: c.name + " 您好：",
@@ -127,6 +132,28 @@ function handleFeedback(input) {
     return { ok: true, no: no };
   } catch (err) {
     return { ok: false, error: err.message };
+  }
+}
+
+function checkFeedbackLimits(email) {
+  var now = Date.now();
+  var dayStart = new Date(today().replace(/\//g, "-") + "T00:00:00+08:00").getTime();
+  var rows = readTable("feedback").map(function (r) {
+    return { email: text(r["回覆 Email"]).replace(/^'/, "").toLowerCase(), time: r["時間"] instanceof Date ? r["時間"].getTime() : 0 };
+  });
+  var sameEmailToday = rows.filter(function (r) { return r.email === email.toLowerCase() && r.time >= dayStart; }).length;
+  if (sameEmailToday >= FEEDBACK_LIMITS.perEmailPerDay) {
+    throw new Error("此 Email 今日已送出 " + sameEmailToday + " 則意見，請於明日再試，或直接來信 szae.official@gmail.com");
+  }
+  var lastHour = rows.filter(function (r) { return r.time >= now - 3600e3; }).length;
+  if (lastHour >= FEEDBACK_LIMITS.perHour) throw new Error("目前意見反映數量較多，請稍後再試，或直接來信 szae.official@gmail.com");
+}
+
+function mailQuotaLeft() {
+  try {
+    return MailApp.getRemainingDailyQuota();
+  } catch (err) {
+    return 100;
   }
 }
 
@@ -194,6 +221,8 @@ function feedbackFollowup(input) {
   var c = withLock(function () {
     var found = findCaseFor(input);
     if (found.status === FEEDBACK.closed) throw new Error("本案件已結案，如有其他意見，請重新提出意見反映");
+    var todayCount = threadOf(found.no).filter(function (t) { return t.role === "學生" && t.time.indexOf(today()) === 0; }).length;
+    if (todayCount >= FEEDBACK_LIMITS.followupsPerDay) throw new Error("本案件今日補充次數已達上限，請於明日再試");
     appendThread(found.no, "學生", found.name, "", message);
     setCase(found, { "處理狀態": FEEDBACK.working, "最後更新": new Date() });
     return found;
@@ -671,8 +700,9 @@ function submitVote(event, voter, answers) {
 function verifyStudent(token) {
   var email = verifyGoogleEmail(token);
   var match = SCHOOL_EMAIL.exec(email);
-  // 開發者可以用自己的 Gmail 測試投票，紀錄的學號欄會寫「開發者」。
-  var developer = readTable("officers").filter(function (r) {
+  // 開發者只在「測試模式」開著時，可以用自己的 Gmail 測試投票，紀錄的學號欄會寫「開發者」。
+  // 正式投票（測試模式為「否」）時一律只收學校帳號，開發者的票不會算進結果。
+  var developer = !match && readSettings().testMode && readTable("officers").filter(function (r) {
     return text(r["Gmail"]).toLowerCase() === email && text(r["職稱"]) === "開發者";
   })[0];
   if (!match && developer) return { id: "開發者", email: email, name: text(developer["姓名"]), eligible: true };

@@ -1782,6 +1782,19 @@ html:has(.sub-nav) { scroll-padding-top: 150px; }
   line-height: 1.6;
 }
 
+.collect-home {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin: 0 24px 32px;
+  color: var(--red);
+  font-size: 15px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.collect-home:hover { text-decoration: underline; text-underline-offset: 4px; }
+
 /* 上方狀態列 */
 .collect-bar {
   position: sticky;
@@ -2243,6 +2256,9 @@ html:has(.sub-nav) { scroll-padding-top: 150px; }
   }
 
   .collect-signin .signin-button { display: flex; justify-content: center; }
+
+  .collect-home { margin: 20px 0 0; color: var(--white); }
+  .collect-home:focus-visible { outline-color: var(--white); }
 }
 
 /* 平板：內容、上方狀態列和下方分頁列對齊同一個 560px 寬的欄位。 */
