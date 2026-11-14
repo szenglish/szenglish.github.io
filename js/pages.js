@@ -627,10 +627,17 @@
         return res.json();
       }).then(function (result) {
         if (!result.ok) throw new Error(result.error || "送出失敗");
+        var email = value("email");
+        var lookup = "feedback.html" + (result.no ? "?no=" + encodeURIComponent(result.no) : "");
         replace(form, [
           el("div", { class: "form-success", tabindex: "-1" }, [
-            el("h3", { text: "已收到你的意見，謝謝！" }),
-            el("p", { text: "我們會盡快回覆到 " + value("email") + "。" })
+            el("h3", { text: "意見已送出，感謝您的寶貴意見。" }),
+            result.no ? el("div", { class: "feedback-case-no" }, [
+              el("span", { text: "案件編號" }),
+              el("strong", { text: result.no })
+            ]) : null,
+            el("p", { text: "受理通知已寄至 " + email + "，原則上於 7 個工作天內回覆。請保留案件編號，以便查詢處理進度。" }),
+            el("a", { class: "button button-navy", href: lookup, text: "查詢處理進度 →" })
           ])
         ]);
         form.querySelector(".form-success").focus();

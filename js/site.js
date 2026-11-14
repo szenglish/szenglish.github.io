@@ -16,6 +16,7 @@
     { label: "關於我們", href: "about.html", page: "about" },
     { label: "會員服務", children: SERVICES },
     { label: "文件專區", href: "documents.html", page: "documents" },
+    { label: "意見進度查詢", href: "feedback.html", page: "feedback", footerOnly: true },
     { label: "友站連結", href: "links.html", page: "links", footerOnly: true },
     { label: "聯絡我們", href: "contact.html", page: "contact" },
     { label: "隱私權政策", href: "privacy.html", page: "privacy", footerOnly: true }

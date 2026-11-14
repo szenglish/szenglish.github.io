@@ -1,4 +1,4 @@
-// 網站的 Google Apps Script：意見反映、會費查詢、幹部收費、線上投票、器材借用。
+// 網站的 Google Apps Script：意見反映（含進度查詢與幹部回覆）、會費查詢、幹部收費、線上投票、器材借用。
 // 請從試算表的「擴充功能 > Apps Script」貼上這份程式，設定方式見 README.md。
 
 // 幹部用 Google 帳號登入收費頁時用的 OAuth 用戶端 ID，和 config.js 的 googleClientId 相同。
@@ -6,6 +6,7 @@ var GOOGLE_CLIENT_ID = "938430486759-qsugaooebsk4i55q8k0946n68me4gus6.apps.googl
 
 var SHEETS = {
   feedback: "意見",
+  feedbackThread: "意見回覆",
   roster: "名冊",
   payments: "收款紀錄",
   settings: "設定",
@@ -18,11 +19,12 @@ var SHEETS = {
   borrows: "借用申請"
 };
 var HEADERS = {
-  feedback: ["時間", "姓名／科系", "回覆 Email", "意見", "指定部門", "處理狀態"],
+  feedback: ["案件編號", "時間", "姓名／科系", "回覆 Email", "意見", "指定部門", "處理狀態", "最後更新", "處理人"],
+  feedbackThread: ["案件編號", "時間", "身分", "名稱", "部門", "內容"],
   roster: ["學號", "姓名", "班級", "入會日期", "備註"],
   payments: ["時間", "學年", "學號", "姓名", "金額", "收據編號", "經手人", "經手人信箱", "狀態", "作廢原因"],
   settings: ["項目", "內容"],
-  officers: ["Gmail", "姓名", "職稱"],
+  officers: ["Gmail", "姓名", "職稱", "部門"],
   voteEvents: ["活動代號", "名稱", "說明", "開始時間", "結束時間", "公開結果"],
   voteQuestions: ["活動代號", "題號", "類型", "標題", "原條文", "修訂條文", "說明", "選項"],
   voteNamed: ["時間", "活動代號", "學號", "姓名", "信箱", "答案"],
@@ -42,7 +44,12 @@ function setup() {
     if (sheet.getLastRow() === 0) {
       sheet.appendRow(HEADERS[key]);
       sheet.setFrozenRows(1);
+      return;
     }
+    // 舊分頁缺少的欄位補在最後面（程式依標題讀寫，欄位順序不影響）。
+    var header = headerOf(sheet);
+    var missing = HEADERS[key].filter(function (h) { return header.indexOf(h) < 0; });
+    if (missing.length) sheet.getRange(1, header.length + 1, 1, missing.length).setValues([missing]);
   });
   var settings = getSheet("settings");
   if (settings.getLastRow() === 1) {
@@ -78,6 +85,7 @@ function doPost(e) {
   }
   if (input.action === "voteStatus" || input.action === "voteSubmit") return json(handleVoter(input));
   if (/^borrow/.test(input.action || "")) return json(handleBorrow(input));
+  if (/^feedback/.test(input.action || "")) return json(handleFeedbackAction(input));
   if (input.action) return json(handleOfficer(input));
   return json(handleFeedback(input));
 }
@@ -87,15 +95,36 @@ function json(data) {
 }
 
 // ── 意見投遞箱 ───────────────────────────────────────────
+// 送出後給案件編號（例如 F1115-01）；學生用「案件編號＋Email」查進度、補充說明；
+// 幹部登入後在網站回覆，回覆會寄信通知學生。對話內容存在「意見回覆」分頁。
 
 var FEEDBACK_MAX_LENGTH = 2000;
 var FEEDBACK_DEPTS = ["不指定", "正副會長", "秘書處", "財務部", "企劃部", "廣宣部"];
+var FEEDBACK = { received: "已收到", working: "處理中", replied: "已回覆", closed: "已結案" };
+var FEEDBACK_HIDE_DAYS = 30;
+var FEEDBACK_URL = "https://szenglish.github.io/feedback.html";
 
 function handleFeedback(input) {
   try {
     var row = feedbackRow(input);
-    if (row) withLock(function () { getSheet("feedback", true).appendRow(rowFor("feedback", row)); });
-    return { ok: true };
+    if (!row) return { ok: true, no: "" };
+    var no = withLock(function () {
+      row["案件編號"] = nextFeedbackNo();
+      getSheet("feedback", true).appendRow(rowFor("feedback", row));
+      return row["案件編號"];
+    });
+    var c = { no: no, name: text(input.name), email: text(input.email), message: text(input.suggestion), dept: row["指定部門"] };
+    sendMail(c.email, "【應用英語科學會】意見反映受理通知（" + no + "）", {
+      label: "意見反映通知", url: FEEDBACK_URL + "?no=" + no,
+      title: "您的意見已收到",
+      greeting: c.name + " 您好：",
+      intro: "感謝您提供寶貴意見。本會已受理並轉交相關部門處理，原則上於 7 個工作天內回覆。",
+      extra: [["案件編號", no], ["指定部門", c.dept], ["您的意見", c.message]],
+      note: "查詢處理進度時，請輸入案件編號及本信收件 Email。",
+      button: "查詢處理進度"
+    });
+    notifyFeedbackDept(c, "【應用英語科學會】新意見反映待處理（" + no + "）", "新的意見反映", "系統收到一則新的意見反映，請協助處理。");
+    return { ok: true, no: no };
   } catch (err) {
     return { ok: false, error: err.message };
   }
@@ -111,11 +140,202 @@ function feedbackRow(input) {
   if (!name || name.length > 50) throw new Error("請填寫姓名／科系");
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 100) throw new Error("請填寫正確的 Email");
   if (!suggestion) throw new Error("請填寫意見內容");
-  if (suggestion.length > FEEDBACK_MAX_LENGTH) throw new Error("意見內容太長");
+  if (suggestion.length > FEEDBACK_MAX_LENGTH) throw new Error("意見內容超過 " + FEEDBACK_MAX_LENGTH + " 字");
+  var now = new Date();
   return {
-    "時間": new Date(), "姓名／科系": safeText(name), "回覆 Email": safeText(email),
-    "意見": safeText(suggestion), "指定部門": dept, "處理狀態": "未回覆"
+    "時間": now, "姓名／科系": safeText(name), "回覆 Email": safeText(email),
+    "意見": safeText(suggestion), "指定部門": dept, "處理狀態": FEEDBACK.received, "最後更新": now
   };
+}
+
+function handleFeedbackAction(input) {
+  try {
+    var action = input.action;
+    if (action === "feedbackLookup") return { ok: true, item: publicCase(findCaseFor(input)) };
+    if (action === "feedbackFollowup") return feedbackFollowup(input);
+    var officer = verifyOfficer(input.token);
+    if (action === "feedbackList") return feedbackList(officer);
+    if (action === "feedbackReply") return feedbackReply(officer, input);
+    if (action === "feedbackStatus") return feedbackSetStatus(officer, input);
+    throw new Error("不支援此操作");
+  } catch (err) {
+    return { ok: false, error: err.message, auth: Boolean(err.auth), denied: Boolean(err.denied) };
+  }
+}
+
+// 案件編號和 Email 都要對才看得到；兩種錯誤用同一句話，避免被拿來猜編號。
+function findCaseFor(input) {
+  var no = text(input.no).toUpperCase();
+  var email = text(input.email).toLowerCase();
+  var c = feedbackCases().filter(function (x) { return x.no === no; })[0];
+  if (!c || !email || c.email.toLowerCase() !== email) throw new Error("查無此案件，請確認案件編號與 Email 是否正確");
+  return c;
+}
+
+function publicCase(c) {
+  var hidden = c.status === FEEDBACK.closed && c.updatedAt && Date.now() - c.updatedAt > FEEDBACK_HIDE_DAYS * 864e5;
+  var base = { no: c.no, status: c.status, created: c.created, updated: c.updated, dept: c.dept };
+  if (hidden) {
+    base.hidden = true;
+    return base;
+  }
+  base.name = c.name;
+  base.message = c.message;
+  base.thread = threadOf(c.no).map(function (t) {
+    return { time: t.time, role: t.role, who: t.role === "學生" ? c.name : "應用英語科學會" + (t.dept ? "　" + t.dept : ""), text: t.text };
+  });
+  return base;
+}
+
+function feedbackFollowup(input) {
+  var message = text(input.message);
+  if (!message) throw new Error("請填寫補充內容");
+  if (message.length > FEEDBACK_MAX_LENGTH) throw new Error("補充內容超過 " + FEEDBACK_MAX_LENGTH + " 字");
+  var c = withLock(function () {
+    var found = findCaseFor(input);
+    if (found.status === FEEDBACK.closed) throw new Error("本案件已結案，如有其他意見，請重新提出意見反映");
+    appendThread(found.no, "學生", found.name, "", message);
+    setCase(found, { "處理狀態": FEEDBACK.working, "最後更新": new Date() });
+    return found;
+  });
+  c.message = message;
+  notifyFeedbackDept(c, "【應用英語科學會】意見反映補充說明（" + c.no + "）", "意見反映補充說明", "反映人針對以下案件提出補充說明，請協助處理。");
+  return { ok: true, item: publicCase(feedbackCases().filter(function (x) { return x.no === c.no; })[0]) };
+}
+
+function feedbackList(officer) {
+  var threads = {};
+  readTable("feedbackThread").forEach(function (r) {
+    var no = text(r["案件編號"]);
+    if (!no) return;
+    (threads[no] = threads[no] || []).push(threadRow(r));
+  });
+  var items = feedbackCases().reverse().slice(0, 300).map(function (c) {
+    var copy = {};
+    Object.keys(c).forEach(function (k) { if (k !== "row" && k !== "updatedAt") copy[k] = c[k]; });
+    copy.thread = threads[c.no] || [];
+    return copy;
+  });
+  return { ok: true, officer: { name: officer.name, dept: officer.dept, title: officer.title }, items: items };
+}
+
+function feedbackReply(officer, input) {
+  var message = text(input.message);
+  if (!message) throw new Error("請填寫回覆內容");
+  if (message.length > FEEDBACK_MAX_LENGTH) throw new Error("回覆內容超過 " + FEEDBACK_MAX_LENGTH + " 字");
+  var status = text(input.status) === FEEDBACK.closed ? FEEDBACK.closed : FEEDBACK.replied;
+  var c = withLock(function () {
+    var found = findCase(input.no);
+    appendThread(found.no, "科學會", officer.name, officer.dept, message);
+    setCase(found, { "處理狀態": status, "最後更新": new Date(), "處理人": officer.name });
+    return found;
+  });
+  sendMail(c.email, "【應用英語科學會】意見反映回覆通知（" + c.no + "）", {
+    label: "意見反映通知", url: FEEDBACK_URL + "?no=" + c.no,
+    title: "您的意見已有回覆",
+    tone: "ok",
+    greeting: c.name + " 您好：",
+    intro: "您反映的意見已由本會" + (officer.dept ? officer.dept : "") + "回覆，內容如下。",
+    extra: [["案件編號", c.no], ["您的意見", shorten(c.message, 200)], ["回覆內容", message]],
+    note: status === FEEDBACK.closed ? "本案件已結案。如有其他意見，歡迎重新提出意見反映。" : "如需補充說明，請至查詢頁面輸入案件編號及 Email 後回覆。",
+    button: "查看完整紀錄"
+  });
+  return { ok: true };
+}
+
+function feedbackSetStatus(officer, input) {
+  var status = text(input.status);
+  if ([FEEDBACK.working, FEEDBACK.closed].indexOf(status) < 0) throw new Error("不支援此狀態");
+  withLock(function () {
+    var c = findCase(input.no);
+    setCase(c, { "處理狀態": status, "最後更新": new Date(), "處理人": officer.name });
+  });
+  return { ok: true };
+}
+
+// 依指定部門通知幹部；「不指定」或該部門沒有人時，通知正副會長。
+function notifyFeedbackDept(c, subject, title, intro) {
+  var officers = readTable("officers").filter(function (r) { return text(r["Gmail"]); });
+  var target = c.dept === "不指定" ? "正副會長" : c.dept;
+  var list = officers.filter(function (r) { return text(r["部門"]) === target; });
+  if (!list.length) list = officers.filter(function (r) { return text(r["部門"]) === "正副會長"; });
+  if (!list.length) list = officers.filter(function (r) { return ["會長", "副會長"].indexOf(text(r["職稱"])) >= 0; });
+  list.forEach(function (r) {
+    sendMail(text(r["Gmail"]), subject, {
+      label: "意見反映通知", url: FEEDBACK_URL + "?admin=1",
+      title: title,
+      greeting: (text(r["姓名"]) || "幹部") + " 您好：",
+      intro: intro,
+      extra: [["案件編號", c.no], ["反映人", c.name], ["指定部門", c.dept], ["內容", c.message]],
+      button: "前往處理"
+    });
+  });
+}
+
+function feedbackCases() {
+  return readTable("feedback").filter(function (r) { return text(r["案件編號"]); }).map(function (r) {
+    var updated = r["最後更新"] instanceof Date ? r["最後更新"] : (r["時間"] instanceof Date ? r["時間"] : null);
+    return {
+      row: r._row, no: text(r["案件編號"]), created: stampText(r["時間"]), name: text(r["姓名／科系"]).replace(/^'/, ""),
+      email: text(r["回覆 Email"]).replace(/^'/, ""), message: text(r["意見"]).replace(/^'/, ""), dept: text(r["指定部門"]) || "不指定",
+      status: normalizeStatus(text(r["處理狀態"])), updated: stampText(updated), updatedAt: updated ? updated.getTime() : 0,
+      handler: text(r["處理人"])
+    };
+  });
+}
+
+// 舊資料的「未回覆」視為「已收到」。
+function normalizeStatus(value) {
+  var all = [FEEDBACK.received, FEEDBACK.working, FEEDBACK.replied, FEEDBACK.closed];
+  return all.indexOf(value) >= 0 ? value : FEEDBACK.received;
+}
+
+function findCase(no) {
+  var c = feedbackCases().filter(function (x) { return x.no === text(no).toUpperCase(); })[0];
+  if (!c) throw new Error("查無此案件");
+  return c;
+}
+
+function setCase(c, values) {
+  var sheet = getSheet("feedback");
+  var header = headerOf(sheet);
+  Object.keys(values).forEach(function (h) {
+    var col = header.indexOf(h);
+    if (col >= 0) sheet.getRange(c.row, col + 1).setValue(values[h]);
+  });
+}
+
+function threadOf(no) {
+  return readTable("feedbackThread").filter(function (r) { return text(r["案件編號"]) === no; }).map(threadRow);
+}
+
+function threadRow(r) {
+  return { time: stampText(r["時間"]), role: text(r["身分"]), name: text(r["名稱"]), dept: text(r["部門"]), text: text(r["內容"]).replace(/^'/, "") };
+}
+
+function appendThread(no, role, name, dept, message) {
+  getSheet("feedbackThread", true).appendRow(rowFor("feedbackThread", {
+    "案件編號": no, "時間": new Date(), "身分": role, "名稱": safeText(name), "部門": dept, "內容": safeText(message)
+  }));
+}
+
+// 案件編號：F + 日期 + 流水號，例如 F1115-01。
+function nextFeedbackNo() {
+  var prefix = "F" + formatDate(new Date(), "MMdd") + "-";
+  var max = 0;
+  feedbackCases().forEach(function (c) {
+    if (c.no.indexOf(prefix) === 0) max = Math.max(max, Number(c.no.slice(prefix.length)) || 0);
+  });
+  return prefix + String(max + 1).padStart(2, "0");
+}
+
+function stampText(value) {
+  return value instanceof Date ? formatDate(value, "yyyy/MM/dd HH:mm") : text(value);
+}
+
+function shorten(value, n) {
+  value = text(value);
+  return value.length > n ? value.slice(0, n) + "…" : value;
 }
 
 // ── 會費查詢（公開，不用登入） ───────────────────────────
@@ -235,7 +455,7 @@ function verifyOfficer(token) {
     return text(r["Gmail"]).toLowerCase() === email;
   })[0];
   if (!match) throw authError(email + " 不在幹部名單中，請聯絡會長加入", true);
-  return { email: email, name: text(match["姓名"]) || email.split("@")[0] };
+  return { email: email, name: text(match["姓名"]) || email.split("@")[0], title: text(match["職稱"]), dept: text(match["部門"]) };
 }
 
 function officerMe(input, officer) {
@@ -874,7 +1094,7 @@ function mailText(mail) {
     lines.push(value.indexOf("\n") >= 0 ? row[0] + "：\n  " + value.split("\n").join("\n  ") : row[0] + "：" + value);
   });
   if (mail.note) lines.push("", mail.note);
-  lines.push("", (mail.button || "查看") + "：" + MAIL_URL, "", "樹人醫專應用英語科學會", "（本信由系統自動發送，請勿直接回覆）");
+  lines.push("", (mail.button || "查看") + "：" + (mail.url || MAIL_URL), "", "樹人醫專應用英語科學會", "（本信由系統自動發送，請勿直接回覆）");
   return lines.join("\n");
 }
 
@@ -893,7 +1113,7 @@ function mailHtml(mail) {
     '<tr><td style="background:#8b1a20;padding:16px 24px">' +
     '<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>' +
     '<td style="vertical-align:middle"><img src="' + MAIL_LOGO + '" width="163" height="48" alt="樹人醫專應用英語科學會" style="display:block;border:0;width:163px;height:48px;color:#ffffff;font-size:15px;font-weight:700"></td>' +
-    '<td align="right" style="vertical-align:middle;color:#ffffff;font-size:13px;font-weight:700;letter-spacing:0.08em;white-space:nowrap">器材借用通知</td>' +
+    '<td align="right" style="vertical-align:middle;color:#ffffff;font-size:13px;font-weight:700;letter-spacing:0.08em;white-space:nowrap">' + htmlEscape(mail.label || "器材借用通知") + '</td>' +
     '</tr></table></td></tr>' +
     '<tr><td style="padding:28px 24px 8px">' +
     '<p style="margin:0;font-size:22px;font-weight:900;color:' + accent + '">' + htmlEscape(mail.title) + "</p>" +
@@ -901,7 +1121,7 @@ function mailHtml(mail) {
     '<p style="margin:0 0 18px;font-size:15px;line-height:1.7;color:#1d2a44">' + htmlEscape(mail.intro) + "</p>" +
     '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #e5e1d8">' + rows + "</table>" +
     (mail.note ? '<p style="margin:18px 0 0;padding:12px 14px;background:#f4f1ea;font-size:14px;line-height:1.7;color:#1d2a44">' + htmlEscape(mail.note) + "</p>" : "") +
-    '<p style="margin:24px 0 8px"><a href="' + MAIL_URL + '" style="display:inline-block;padding:12px 22px;background:#1d2a44;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px">' +
+    '<p style="margin:24px 0 8px"><a href="' + htmlEscape(mail.url || MAIL_URL) + '" style="display:inline-block;padding:12px 22px;background:#1d2a44;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px">' +
     htmlEscape(mail.button || "查看") + "</a></p></td></tr>" +
     '<tr><td style="padding:18px 24px 22px;color:#8a8a8a;font-size:12px;line-height:1.7;border-top:1px solid #e5e1d8">樹人醫專應用英語科學會<br>本信由系統自動發送，請勿直接回覆。</td></tr>' +
     "</table></td></tr></table></body></html>";
