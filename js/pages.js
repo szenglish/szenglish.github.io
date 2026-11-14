@@ -657,7 +657,7 @@
     }
 
     function notice(title, text) {
-      return el("div", { class: "paycheck-card is-empty" }, [
+      return el("div", { class: "paycheck-card is-error", role: "alert" }, [
         el("p", { class: "paycheck-card-title", text: title }),
         el("p", { class: "paycheck-card-text", text: text })
       ]);

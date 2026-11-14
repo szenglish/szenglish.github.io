@@ -3,14 +3,19 @@
   var CONFIG = window.SZAE_CONFIG;
   var LOGO = "assets/images/logo.webp";
 
+  // 「會員服務」選單裡的功能，首頁的服務卡片也用同一份說明。
+  var SERVICES = [
+    { label: "會費查詢", href: "paycheck.html", page: "paycheck", desc: "輸入學號，查詢會費繳納狀態" },
+    { label: "線上投票", href: "vote.html", page: "vote", desc: "參與選舉、章程修訂與各項表決" },
+    { label: "器材借用", href: "borrow.html", page: "borrow", desc: "線上申請活動器材，隨時查詢審核進度" }
+  ];
+
   var NAV = [
     { label: "首頁", href: "index.html", page: "home" },
     { label: "應英月刊", href: "news.html", page: "news" },
     { label: "關於我們", href: "about.html", page: "about" },
-    { label: "會費查詢", href: "paycheck.html", page: "paycheck" },
-    { label: "線上投票", href: "vote.html", page: "vote" },
+    { label: "會員服務", children: SERVICES },
     { label: "文件專區", href: "documents.html", page: "documents" },
-    { label: "器材借用", href: "borrow.html", page: "borrow", footerOnly: true },
     { label: "友站連結", href: "links.html", page: "links", footerOnly: true },
     { label: "聯絡我們", href: "contact.html", page: "contact" },
     { label: "隱私權政策", href: "privacy.html", page: "privacy", footerOnly: true }
@@ -42,9 +47,11 @@
 
   function renderHeader() {
     var page = document.body.getAttribute("data-page");
+    var groups = [];
     var list = el("ul", { class: "nav-list", id: "nav-list" }, NAV.filter(function (item) {
       return !item.footerOnly;
-    }).map(function (item) {
+    }).map(function (item, index) {
+      if (item.children) return navGroup(item, index);
       var props = { href: item.href, text: item.label };
       if (item.page === page) props["aria-current"] = "page";
       if (item.external) {
@@ -53,6 +60,32 @@
       }
       return el("li", {}, [el("a", props)]);
     }));
+
+    // 下拉選單：電腦版點擊或滑過展開，手機版直接列在選單裡。
+    function navGroup(item, index) {
+      var id = "nav-group-" + index;
+      var current = item.children.some(function (c) { return c.page === page; });
+      var button = el("button", {
+        class: "nav-group-toggle" + (current ? " is-current" : ""), type: "button",
+        "aria-expanded": "false", "aria-controls": id
+      }, [el("span", { text: item.label }), el("span", { class: "nav-caret", "aria-hidden": "true" })]);
+      var sub = el("ul", { class: "nav-sub", id: id }, item.children.map(function (c) {
+        var props = { href: c.href };
+        if (c.page === page) props["aria-current"] = "page";
+        return el("li", {}, [el("a", props, [
+          el("span", { class: "nav-sub-label", text: c.label }),
+          el("span", { class: "nav-sub-desc", text: c.desc })
+        ])]);
+      }));
+      var li = el("li", { class: "nav-group" }, [button, sub]);
+      function setOpen(open) {
+        li.classList.toggle("is-open", open);
+        button.setAttribute("aria-expanded", String(open));
+      }
+      button.addEventListener("click", function () { setOpen(!li.classList.contains("is-open")); });
+      groups.push({ li: li, setOpen: setOpen, button: button });
+      return li;
+    }
     var toggle = el("button", {
       class: "nav-toggle", type: "button", "aria-expanded": "false", "aria-controls": "nav-list", "aria-label": "開啟選單"
     }, [el("span"), el("span"), el("span")]);
@@ -76,13 +109,19 @@
       setMenu(!list.classList.contains("is-open"));
     });
     document.addEventListener("keydown", function (event) {
-      if (event.key === "Escape" && list.classList.contains("is-open")) {
+      if (event.key !== "Escape") return;
+      var openGroup = groups.filter(function (g) { return g.li.classList.contains("is-open"); })[0];
+      if (openGroup) {
+        openGroup.setOpen(false);
+        openGroup.button.focus();
+      } else if (list.classList.contains("is-open")) {
         setMenu(false);
         toggle.focus();
       }
     });
     document.addEventListener("click", function (event) {
       if (!list.contains(event.target) && !toggle.contains(event.target)) setMenu(false);
+      groups.forEach(function (g) { if (!g.li.contains(event.target)) g.setOpen(false); });
     });
     var header = el("header", { class: "site-header" }, [
       el("div", { class: "wrap site-header-inner" }, [
@@ -115,7 +154,9 @@
           el("p", { text: CONFIG.address })
         ]),
         el("nav", { class: "footer-nav", "aria-label": "頁尾導覽" }, [
-          el("ul", {}, NAV.map(function (item) {
+          el("ul", {}, NAV.reduce(function (all, item) {
+            return all.concat(item.children || [item]);
+          }, []).map(function (item) {
             return el("li", {}, [el("a", { href: item.href, text: item.label })]);
           }))
         ]),
