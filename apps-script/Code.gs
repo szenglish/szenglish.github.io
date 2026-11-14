@@ -156,7 +156,7 @@ function maskName(name) {
 function handleOfficer(input) {
   try {
     var officer = verifyOfficer(input.token);
-    var actions = { me: officerMe, lookup: officerLookup, pay: officerPay, "void": officerVoid, today: officerToday };
+    var actions = { me: officerMe, roster: officerRoster, lookup: officerLookup, pay: officerPay, "void": officerVoid, today: officerToday };
     if (!actions[input.action]) throw new Error("不支援的操作");
     return actions[input.action](input, officer);
   } catch (err) {
@@ -199,6 +199,19 @@ function verifyOfficer(token) {
 function officerMe(input, officer) {
   var settings = readSettings();
   return { ok: true, officer: officer.name, email: officer.email, term: settings.term, fee: settings.fee };
+}
+
+// 登入後把整份名冊和本學期已繳名單一次傳給收費頁，之後查學號、找姓名、看班級都不用再等網路。
+function officerRoster(input, officer) {
+  var settings = readSettings();
+  var members = readTable("roster").map(function (r) {
+    return { id: idOf(r["學號"]), name: text(r["姓名"]), className: text(r["班級"]) };
+  }).filter(function (m) { return m.id; });
+  var paid = {};
+  currentPayments(settings.term).forEach(function (p) {
+    if (!p.void) paid[p.id] = publicPayment(p);
+  });
+  return { ok: true, term: settings.term, fee: settings.fee, members: members, paid: paid };
 }
 
 function officerLookup(input, officer) {

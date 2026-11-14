@@ -1,18 +1,34 @@
 // 幹部收費頁：用 Google 登入，把收款寫進試算表。權限由 Apps Script 比對「幹部」分頁決定。
+// 登入後先把名冊下載到手機，查學號、找姓名、看班級都不用等網路；只有收款和復原會送到試算表。
 (function () {
   var S = window.SZAE;
   var el = S.el;
   var TOKEN_KEY = "szae-collect-token";
+  var SCANNER_SRC = "https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js";
+  var UNDO_SECONDS = 10;
+  var REFRESH_MS = 60000;
+  var ID_PATTERN = /^\d{5,10}$/;
+  var GRADES = ["一", "二", "三", "四", "五"];
+
   var token = null;
-  var state = { fee: 0, term: "" };
+  var refreshTimer = null;
+  var state = {
+    officer: "", term: "", fee: 0, loaded: false,
+    members: {}, paid: {}, pending: {},
+    mode: "id", selected: null
+  };
 
   var $ = function (id) { return document.getElementById(id); };
   var signin = $("collect-signin");
   var app = $("collect-app");
-  var form = $("collect-form");
-  var input = $("collect-id");
-  var error = $("collect-error");
+  var idForm = $("id-form");
+  var idInput = $("collect-id");
+  var idError = $("collect-error");
+  var nameInput = $("collect-name");
+  var classSelect = $("collect-class");
+  var unpaidOnly = $("unpaid-only");
   var result = $("collect-result");
+  var people = $("collect-list");
 
   function replace(target, nodes) {
     target.textContent = "";
@@ -20,6 +36,12 @@
   }
 
   function money(n) { return "NT$" + Number(n || 0).toLocaleString("en-US"); }
+
+  function digitsOnly(value) {
+    return value.replace(/[０-９]/g, function (c) {
+      return String.fromCharCode(c.charCodeAt(0) - 0xFEE0);
+    }).replace(/\D/g, "");
+  }
 
   // ── 登入 ──
 
@@ -50,6 +72,8 @@
 
   function showSignin(message) {
     saveToken(null);
+    clearInterval(refreshTimer);
+    stopScanner();
     app.hidden = true;
     signin.hidden = false;
     $("collect-term").textContent = "登入後開始收費";
@@ -103,169 +127,452 @@
     $("signin-message").textContent = "登入中…";
     api({ action: "me" }).then(function (me) {
       if (!me.ok) throw new Error(me.error);
-      state.fee = me.fee;
-      state.term = me.term;
+      state.officer = me.officer;
       $("officer-name").textContent = me.officer;
-      $("collect-term").textContent = me.term + " 學期・會費 " + money(me.fee);
+      setTerm(me.term, me.fee);
       signin.hidden = true;
       app.hidden = false;
-      input.focus();
+      setMode(state.mode);
+      loadRoster();
       loadToday();
+      clearInterval(refreshTimer);
+      refreshTimer = setInterval(loadRoster, REFRESH_MS);
     }).catch(function (err) {
       if (!err.handled) showSignin("登入失敗：" + err.message);
     });
   }
 
+  function setTerm(term, fee) {
+    state.term = term;
+    state.fee = fee;
+    $("collect-term").textContent = term + " 學期・會費 " + money(fee);
+  }
+
   $("signout").addEventListener("click", function () {
     if (window.google) google.accounts.id.disableAutoSelect();
-    replace(result, []);
+    state.selected = null;
+    render();
     showSignin("");
   });
 
-  // ── 查詢與收款 ──
+  // ── 名冊（存在手機上，每分鐘和試算表同步一次） ──
 
-  function detail(label, value) {
-    return value ? el("div", {}, [el("dt", { text: label }), el("dd", { text: value })]) : null;
+  function loadRoster() {
+    return api({ action: "roster" }).then(function (data) {
+      if (!data.ok) throw new Error(data.error);
+      setTerm(data.term, data.fee);
+      var members = {};
+      data.members.forEach(function (m) { members[m.id] = m; });
+      state.members = members;
+      state.paid = data.paid;
+      state.loaded = true;
+      fillClasses();
+      render();
+    }).catch(function (err) {
+      if (!err.handled && !state.loaded) toast({ kind: "error", text: "名冊載入失敗：" + err.message, action: { label: "重試", run: loadRoster } });
+    });
   }
 
-  function message(title, text, className) {
-    return el("div", { class: "paycheck-card " + (className || "is-empty") }, [
-      el("p", { class: "paycheck-card-title", text: title }),
-      text ? el("p", { class: "paycheck-card-text", text: text }) : null
-    ]);
+  // 有填「班級」就用班級；沒填的話，依學號推算年級。
+  // 應英科學號是 5 + 入學年後兩碼 + 科別 06 + 座號 3 碼，例如 51106069 → 111 學年入學。
+  function groupOf(member) {
+    if (member.className) return { key: "0" + member.className, label: member.className };
+    var match = /^5(\d{2})06\d{3}$/.exec(member.id);
+    var termYear = parseInt(state.term, 10);
+    if (!match) return { key: "9", label: "其他學號（轉入或他科）" };
+    var year = 100 + Number(match[1]);
+    var grade = termYear - year + 1;
+    var label = grade >= 1 && grade <= 5 ? GRADES[grade - 1] + "年級（" + year + " 入學）" : year + " 入學";
+    return { key: "1" + (999 - year), label: label };
   }
 
-  function busy(button, label) {
-    button.disabled = true;
-    button.setAttribute("data-label", button.textContent);
-    button.textContent = label;
+  function statusOf(id) {
+    if (state.paid[id]) return "paid";
+    if (state.pending[id]) return "pending";
+    return "unpaid";
   }
 
-  function idle(button) {
-    button.disabled = false;
-    button.textContent = button.getAttribute("data-label");
+  function fillClasses() {
+    var groups = {};
+    Object.keys(state.members).forEach(function (id) {
+      var g = groupOf(state.members[id]);
+      groups[g.key] = groups[g.key] || { label: g.label, total: 0, unpaid: 0 };
+      groups[g.key].total += 1;
+      if (statusOf(id) === "unpaid") groups[g.key].unpaid += 1;
+    });
+    var current = classSelect.value;
+    replace(classSelect, Object.keys(groups).sort().map(function (key) {
+      var g = groups[key];
+      var option = el("option", { value: g.label, text: g.label + "・未繳 " + g.unpaid + "／" + g.total });
+      if (g.label === current) option.selected = true;
+      return option;
+    }));
   }
 
-  function paidCard(id, name, payment, fresh) {
-    return el("div", { class: "paycheck-card is-paid" + (fresh ? " is-fresh" : "") }, [
+  // ── 收款與復原 ──
+
+  function collect(id, extra) {
+    if (state.paid[id] || state.pending[id]) return;
+    extra = extra || {};
+    var member = state.members[id] || { id: id, name: extra.name, className: extra.className || "" };
+    state.pending[id] = true;
+    var note = toast({ kind: "pending", text: member.name + " 登記中…" });
+    afterCollect();
+
+    api({ action: "pay", id: id, name: extra.name || "", className: extra.className || "" }).then(function (res) {
+      delete state.pending[id];
+      if (!res.ok && res.payment) {
+        state.paid[id] = res.payment;
+        note.update({ kind: "warn", text: member.name + " 本學期已經繳過了", sub: "經手人 " + res.payment.handler + "，請不要重複收費。", timeout: 8 });
+        render();
+        return;
+      }
+      if (!res.ok) throw new Error(res.error);
+      if (!state.members[id]) state.members[id] = member;
+      state.paid[id] = { receipt: res.receipt, handler: state.officer, time: res.time };
+      note.update({
+        kind: "ok",
+        text: "✓ " + res.name + " 收款完成",
+        sub: money(res.amount) + "・" + res.receipt,
+        action: { label: "復原", run: function () { undo(id, res.receipt, res.name); } },
+        timeout: UNDO_SECONDS
+      });
+      render();
+      loadToday();
+    }).catch(function (err) {
+      delete state.pending[id];
+      render();
+      if (err.handled) { note.remove(); return; }
+      note.update({ kind: "error", text: member.name + " 登記失敗，這筆還沒有記錄", sub: err.message, action: { label: "重試", run: function () { collect(id, extra); } } });
+    });
+  }
+
+  function undo(id, receipt, name) {
+    var note = toast({ kind: "pending", text: "復原 " + name + "…" });
+    api({ action: "void", receipt: receipt, reason: "按錯復原" }).then(function (res) {
+      if (!res.ok) throw new Error(res.error);
+      delete state.paid[id];
+      note.update({ kind: "info", text: name + " 已復原，這筆不算收款", timeout: 4 });
+      render();
+      loadToday();
+    }).catch(function (err) {
+      if (err.handled) { note.remove(); return; }
+      note.update({ kind: "error", text: "復原失敗：" + err.message, sub: "可以到下方「今日收款」按作廢。" });
+    });
+  }
+
+  // 收款送出後馬上準備下一位，不用等試算表回應。
+  function afterCollect() {
+    if (state.mode === "id") {
+      idInput.value = "";
+      state.selected = null;
+      idInput.focus();
+    } else if (state.mode === "scan") {
+      resumeScanner();
+    } else if (state.mode === "name") {
+      nameInput.value = "";
+      nameInput.focus();
+    }
+    render();
+  }
+
+  // ── 畫面 ──
+
+  function select(id) {
+    state.selected = id;
+    render();
+    var focus = result.querySelector("#new-name") || result.querySelector(".collect-pay");
+    if (focus) focus.focus();
+  }
+
+  function badge(id) {
+    var status = statusOf(id);
+    var text = { paid: "本學期已繳", pending: "登記中…", unpaid: "本學期未繳" }[status];
+    return el("span", { class: "paycheck-status", text: text });
+  }
+
+  function personCard(id) {
+    var member = state.members[id];
+    var payment = state.paid[id];
+    var status = statusOf(id);
+    if (!member && !payment) return newMemberCard(id);
+    var name = member ? member.name : "";
+    var pay = null;
+    if (status === "unpaid") {
+      pay = el("button", { class: "button button-navy collect-pay", type: "button", text: "收款 " + money(state.fee) });
+      pay.addEventListener("click", function () { collect(id); });
+    }
+    return el("div", { class: "paycheck-card " + { paid: "is-paid", pending: "is-other", unpaid: "is-unpaid" }[status] }, [
       el("div", { class: "paycheck-card-head" }, [
         el("div", {}, [
           el("p", { class: "paycheck-card-id", text: id }),
-          el("p", { class: "paycheck-card-name", text: name })
+          el("p", { class: "paycheck-card-name", text: name }),
+          member ? el("p", { class: "paycheck-card-text", text: groupOf(member).label }) : null
         ]),
-        el("span", { class: "paycheck-status", text: fresh ? "收款完成" : "本學期已繳" })
+        badge(id)
       ]),
-      fresh ? el("p", { class: "collect-receipt" }, [
-        el("span", { text: "收據編號" }),
-        el("strong", { text: payment.receipt })
-      ]) : null,
-      el("dl", { class: "paycheck-details" }, [
-        fresh ? null : detail("收據編號", payment.receipt),
-        detail("經手人", payment.handler),
-        detail("時間", (payment.date || "") + " " + (payment.time || ""))
-      ]),
-      fresh ? el("button", { class: "button button-navy collect-next", type: "button", text: "下一位" }) : null
-    ]);
-  }
-
-  function unpaidCard(data) {
-    var isNew = !data.member;
-    var nameInput = isNew ? el("input", { id: "new-name", type: "text", maxlength: "30", autocomplete: "off", placeholder: "例如 王小明" }) : null;
-    var classInput = isNew ? el("input", { id: "new-class", type: "text", maxlength: "30", autocomplete: "off", placeholder: "例如 應英一忠（可不填）" }) : null;
-    var pay = el("button", { class: "button button-navy collect-pay", type: "button", text: (isNew ? "新增並收款 " : "收款 ") + money(data.fee) });
-    var note = el("p", { class: "form-message", role: "status" });
-
-    pay.addEventListener("click", function () {
-      var name = isNew ? nameInput.value.trim() : data.member.name;
-      if (isNew && !name) {
-        note.className = "form-message is-error";
-        note.textContent = "請填寫姓名。";
-        nameInput.focus();
-        return;
-      }
-      if (!confirm("確認向 " + name + "（" + data.id + "）收取 " + money(data.fee) + "？")) return;
-      busy(pay, "登記中…");
-      api({ action: "pay", id: data.id, name: name, className: isNew ? classInput.value.trim() : "" }).then(function (res) {
-        if (!res.ok && res.payment) {
-          replace(result, [paidCard(data.id, name, res.payment, false), message("剛剛已經有人登記過了", "請不要重複收費。", "is-other")]);
-          return;
-        }
-        if (!res.ok) throw new Error(res.error);
-        replace(result, [paidCard(res.id, res.name, { receipt: res.receipt, handler: $("officer-name").textContent, time: res.time }, true)]);
-        result.querySelector(".collect-next").addEventListener("click", nextStudent);
-        result.querySelector(".collect-next").focus();
-        loadToday();
-      }).catch(function (err) {
-        if (err.handled) return;
-        idle(pay);
-        note.className = "form-message is-error";
-        note.textContent = "登記失敗：" + err.message + "。這筆還沒有記錄，可以再按一次。";
-      });
-    });
-
-    return el("div", { class: "paycheck-card " + (isNew ? "is-other" : "is-unpaid") }, [
-      el("div", { class: "paycheck-card-head" }, [
-        el("div", {}, [
-          el("p", { class: "paycheck-card-id", text: data.id }),
-          el("p", { class: "paycheck-card-name", text: isNew ? "新會員" : data.member.name }),
-          !isNew && data.member.className ? el("p", { class: "paycheck-card-text", text: data.member.className }) : null
-        ]),
-        el("span", { class: "paycheck-status", text: isNew ? "名冊沒有" : "本學期未繳" })
-      ]),
-      isNew ? el("div", { class: "collect-new" }, [
-        el("div", { class: "field" }, [el("label", { for: "new-name", text: "姓名" }), nameInput]),
-        el("div", { class: "field" }, [el("label", { for: "new-class", text: "班級" }), classInput])
+      payment ? el("dl", { class: "paycheck-details" }, [
+        el("div", {}, [el("dt", { text: "經手人" }), el("dd", { text: payment.handler })]),
+        el("div", {}, [el("dt", { text: "時間" }), el("dd", { text: ((payment.date || "") + " " + (payment.time || "")).trim() })])
       ]) : null,
       pay,
-      note
+      state.mode === "scan" ? scanAgainButton() : null
     ]);
   }
 
-  function nextStudent() {
-    input.value = "";
-    replace(result, []);
-    input.focus();
-    window.scrollTo({ top: 0 });
+  function newMemberCard(id) {
+    var name = el("input", { id: "new-name", type: "text", maxlength: "30", autocomplete: "off", placeholder: "例如 王小明" });
+    var className = el("input", { id: "new-class", type: "text", maxlength: "30", autocomplete: "off", placeholder: "例如 應英一忠（可不填）" });
+    var pay = el("button", { class: "button button-navy collect-pay", type: "button", text: "新增並收款 " + money(state.fee) });
+    var note = el("p", { class: "form-message", role: "status" });
+    pay.addEventListener("click", function () {
+      if (!name.value.trim()) {
+        note.className = "form-message is-error";
+        note.textContent = "請填寫姓名。";
+        name.focus();
+        return;
+      }
+      collect(id, { name: name.value.trim(), className: className.value.trim() });
+    });
+    return el("div", { class: "paycheck-card is-other" }, [
+      el("div", { class: "paycheck-card-head" }, [
+        el("div", {}, [
+          el("p", { class: "paycheck-card-id", text: id }),
+          el("p", { class: "paycheck-card-name", text: "新會員" })
+        ]),
+        el("span", { class: "paycheck-status", text: "名冊沒有" })
+      ]),
+      el("div", { class: "collect-new" }, [
+        el("div", { class: "field" }, [el("label", { for: "new-name", text: "姓名" }), name]),
+        el("div", { class: "field" }, [el("label", { for: "new-class", text: "班級" }), className])
+      ]),
+      pay,
+      note,
+      state.mode === "scan" ? scanAgainButton() : null
+    ]);
   }
 
-  input.addEventListener("input", function () {
-    // 全形數字轉半形，並去掉非數字。
-    var clean = input.value.replace(/[０-９]/g, function (c) {
-      return String.fromCharCode(c.charCodeAt(0) - 0xFEE0);
-    }).replace(/\D/g, "");
-    if (clean !== input.value) input.value = clean;
-    error.hidden = true;
-    input.removeAttribute("aria-invalid");
+  function scanAgainButton() {
+    var button = el("button", { class: "text-button collect-again", type: "button", text: "繼續掃描下一位" });
+    button.addEventListener("click", resumeScanner);
+    return button;
+  }
+
+  // 名單的一列：右邊直接放「收款」按鈕，一按就收。
+  function personRow(member) {
+    var status = statusOf(member.id);
+    var right;
+    if (status === "unpaid") {
+      right = el("button", { class: "button button-navy collect-row-pay", type: "button", text: "收款" });
+      right.addEventListener("click", function () { collect(member.id); });
+    } else {
+      right = el("span", { class: "collect-row-status is-" + status, text: status === "paid" ? "✓ 已繳" : "登記中…" });
+    }
+    return el("li", { class: "is-" + status }, [
+      el("div", { class: "collect-row-main" }, [
+        el("p", { class: "collect-row-name", text: member.name }),
+        el("p", { class: "collect-row-meta", text: member.id + (state.mode === "name" ? "・" + groupOf(member).label : "") })
+      ]),
+      right
+    ]);
+  }
+
+  function render() {
+    fillClasses();
+    // 掃到人之後先收起相機畫面，收款按鈕才不會被擠到螢幕外。
+    document.querySelector("[data-panel=scan]").classList.toggle("has-result", Boolean(state.selected));
+    var nodes = [];
+    if (state.selected && (state.mode === "id" || state.mode === "scan")) {
+      nodes.push(state.loaded ? personCard(state.selected) : el("div", { class: "paycheck-card is-loading", "aria-hidden": "true" }));
+    }
+    replace(result, nodes);
+
+    var rows = [];
+    var all = Object.keys(state.members).map(function (id) { return state.members[id]; });
+    if (state.mode === "name") {
+      var query = nameInput.value.trim();
+      if (query) {
+        var matches = all.filter(function (m) { return m.name.indexOf(query) >= 0; }).slice(0, 30);
+        rows = matches.length ? matches.map(personRow) : [el("li", { class: "collect-people-empty", text: "名冊裡沒有「" + query + "」，可以改用學號新增。" })];
+      }
+    } else if (state.mode === "class" && classSelect.value) {
+      var members = all.filter(function (m) {
+        return groupOf(m).label === classSelect.value && (!unpaidOnly.checked || statusOf(m.id) !== "paid");
+      }).sort(function (a, b) { return a.id.localeCompare(b.id); });
+      rows = members.length ? members.map(personRow) : [el("li", { class: "collect-people-empty", text: "這一班都繳完了 🎉" })];
+    }
+    if (!state.loaded && (state.mode === "name" || state.mode === "class")) {
+      rows = [el("li", { class: "collect-people-empty", text: "名冊載入中…" })];
+    }
+    replace(people, rows);
+  }
+
+  // ── 找人的方式 ──
+
+  function setMode(mode) {
+    state.mode = mode;
+    state.selected = null;
+    document.querySelectorAll(".collect-modes [data-mode]").forEach(function (tab) {
+      tab.setAttribute("aria-selected", String(tab.getAttribute("data-mode") === mode));
+    });
+    document.querySelectorAll(".collect-mode").forEach(function (panel) {
+      panel.hidden = panel.getAttribute("data-panel") !== mode;
+    });
+    if (mode === "scan") startScanner();
+    else stopScanner();
+    render();
+    if (mode === "id") idInput.focus();
+    if (mode === "name") nameInput.focus();
+  }
+
+  document.querySelectorAll(".collect-modes [data-mode]").forEach(function (tab) {
+    tab.addEventListener("click", function () { setMode(tab.getAttribute("data-mode")); });
   });
 
-  form.addEventListener("submit", function (event) {
+  idInput.addEventListener("input", function () {
+    var clean = digitsOnly(idInput.value);
+    if (clean !== idInput.value) idInput.value = clean;
+    idError.hidden = true;
+    idInput.removeAttribute("aria-invalid");
+    // 一般學號是 8 碼，打滿就直接查，不用再按查詢。
+    if (clean.length === 8) select(clean);
+    else if (state.selected) { state.selected = null; render(); }
+  });
+
+  idForm.addEventListener("submit", function (event) {
     event.preventDefault();
-    var id = input.value.trim();
-    if (!/^\d{5,10}$/.test(id)) {
-      error.hidden = false;
-      input.setAttribute("aria-invalid", "true");
-      replace(result, []);
-      input.focus();
+    var id = idInput.value.trim();
+    if (!ID_PATTERN.test(id)) {
+      idError.hidden = false;
+      idInput.setAttribute("aria-invalid", "true");
+      idInput.focus();
       return;
     }
-    var submit = form.querySelector("button[type=submit]");
-    busy(submit, "查詢中…");
-    replace(result, [el("div", { class: "paycheck-card is-loading", "aria-hidden": "true" })]);
-    api({ action: "lookup", id: id }).then(function (data) {
-      if (!data.ok) throw new Error(data.error);
-      if (data.payment) {
-        replace(result, [paidCard(id, data.member ? data.member.name : "", data.payment, false)]);
-      } else {
-        replace(result, [unpaidCard(data)]);
-        var first = result.querySelector("#new-name") || result.querySelector(".collect-pay");
-        if (first) first.focus();
-      }
-    }).catch(function (err) {
-      if (!err.handled) replace(result, [message("查詢失敗", err.message + "，請再試一次。")]);
-    }).then(function () {
-      idle(submit);
-    });
+    select(id);
   });
+
+  nameInput.addEventListener("input", render);
+  classSelect.addEventListener("change", render);
+  unpaidOnly.addEventListener("change", render);
+
+  // ── 掃描學生證條碼 ──
+
+  var scanner = null;
+  var lastScan = { id: "", at: 0 };
+
+  function loadScript(src) {
+    return new Promise(function (resolve, reject) {
+      var script = document.createElement("script");
+      script.src = src;
+      script.onload = resolve;
+      script.onerror = function () { reject(new Error("掃描元件載入失敗")); };
+      document.head.appendChild(script);
+    });
+  }
+
+  function scanHint(text, isError) {
+    $("scan-hint").textContent = text;
+    $("scan-hint").classList.toggle("is-error", Boolean(isError));
+  }
+
+  // 條碼內容可能有前後符號，取出其中的學號。
+  function idFromBarcode(text) {
+    var digits = digitsOnly(String(text));
+    if (state.members[digits]) return digits;
+    var match = String(text).match(/\d{8}/);
+    if (match) return match[0];
+    return ID_PATTERN.test(digits) ? digits : null;
+  }
+
+  function onScan(text) {
+    var id = idFromBarcode(text);
+    if (!id) {
+      scanHint("讀到的條碼不是學號（" + text + "）。", true);
+      return;
+    }
+    if (state.selected === id || (id === lastScan.id && Date.now() - lastScan.at < 3000)) return;
+    lastScan = { id: id, at: Date.now() };
+    if (navigator.vibrate) navigator.vibrate(60);
+    try { scanner.pause(true); } catch (err) { /* 已經暫停 */ }
+    scanHint("把學生證條碼對準框線，掃到後會自動顯示。");
+    select(id);
+  }
+
+  function startScanner() {
+    scanHint("開啟相機中…");
+    (window.Html5Qrcode ? Promise.resolve() : loadScript(SCANNER_SRC)).then(function () {
+      if (state.mode !== "scan") return null;
+      var F = window.Html5QrcodeSupportedFormats;
+      if (!scanner) {
+        scanner = new Html5Qrcode("scanner", {
+          formatsToSupport: [F.CODE_39, F.CODE_128, F.CODABAR, F.ITF, F.EAN_13, F.QR_CODE],
+          experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+          verbose: false
+        });
+      }
+      if (scanner.isScanning) return null;
+      return scanner.start({ facingMode: "environment" }, {
+        fps: 12,
+        qrbox: function (width, height) {
+          return { width: Math.floor(width * 0.86), height: Math.floor(Math.min(width, height) * 0.42) };
+        }
+      }, onScan, function () { /* 這一格沒有讀到條碼，繼續掃 */ });
+    }).then(function () {
+      if (state.mode === "scan") scanHint("把學生證條碼對準框線，掃到後會自動顯示。");
+    }).catch(function (err) {
+      scanHint("無法開啟相機：" + (err && err.message ? err.message : err) + "。請在瀏覽器允許使用相機，或改用學號輸入。", true);
+    });
+  }
+
+  function stopScanner() {
+    if (scanner && scanner.isScanning) scanner.stop().catch(function () { /* 已經停止 */ });
+  }
+
+  function resumeScanner() {
+    state.selected = null;
+    render();
+    try { if (scanner) scanner.resume(); } catch (err) { /* 沒有暫停 */ }
+  }
+
+  // ── 提示訊息（畫面底部） ──
+
+  function toast(options) {
+    var box = el("div", { class: "collect-toast", role: "status" });
+    var timer = null;
+    function draw(opts) {
+      clearTimeout(timer);
+      box.className = "collect-toast is-" + (opts.kind || "info");
+      var action = null;
+      if (opts.action) {
+        action = el("button", { class: "collect-toast-action", type: "button", text: opts.action.label });
+        action.addEventListener("click", function () { remove(); opts.action.run(); });
+      }
+      replace(box, [
+        el("div", { class: "collect-toast-body" }, [
+          el("p", { class: "collect-toast-text", text: opts.text }),
+          opts.sub ? el("p", { class: "collect-toast-sub", text: opts.sub }) : null
+        ]),
+        action,
+        opts.timeout ? el("span", { class: "collect-toast-timer", style: "animation-duration:" + opts.timeout + "s" }) : null,
+        opts.kind === "pending" ? null : closeButton()
+      ]);
+      if (opts.timeout) timer = setTimeout(remove, opts.timeout * 1000);
+    }
+    function closeButton() {
+      var close = el("button", { class: "collect-toast-close", type: "button", "aria-label": "關閉", text: "×" });
+      close.addEventListener("click", remove);
+      return close;
+    }
+    function remove() {
+      clearTimeout(timer);
+      if (box.parentNode) box.parentNode.removeChild(box);
+    }
+    draw(options);
+    $("toasts").appendChild(box);
+    // 最多同時顯示 3 則，較舊的先收起來。
+    while ($("toasts").children.length > 3) $("toasts").removeChild($("toasts").firstChild);
+    return { update: draw, remove: remove };
+  }
 
   // ── 今日收款 ──
 
@@ -281,16 +588,18 @@
     var voidButton = !item.void ? el("button", { class: "text-button", type: "button", text: "作廢" }) : null;
     if (voidButton) {
       voidButton.addEventListener("click", function () {
-        var reason = prompt("作廢收據 " + item.receipt + "（" + item.name + "）\n請輸入原因：");
+        var reason = prompt("作廢 " + item.name + "（" + item.receipt + "）\n請輸入原因：");
         if (reason === null) return;
         if (!reason.trim()) { alert("要填寫原因才能作廢。"); return; }
-        busy(voidButton, "處理中…");
+        voidButton.disabled = true;
         api({ action: "void", receipt: item.receipt, reason: reason.trim() }).then(function (res) {
           if (!res.ok) throw new Error(res.error);
+          if (state.paid[item.id] && state.paid[item.id].receipt === item.receipt) delete state.paid[item.id];
+          render();
           loadToday();
         }).catch(function (err) {
           if (err.handled) return;
-          idle(voidButton);
+          voidButton.disabled = false;
           alert("作廢失敗：" + err.message);
         });
       });
@@ -299,7 +608,7 @@
       el("span", { class: "collect-list-time", text: item.time }),
       el("div", { class: "collect-list-main" }, [
         el("p", { text: item.name + "　" + item.id }),
-        el("p", { class: "collect-list-meta", text: item.receipt + "・" + item.handler + (item.void ? "・已作廢" : "") })
+        el("p", { class: "collect-list-meta", text: item.handler + "・" + item.receipt + (item.void ? "・已作廢" : "") })
       ]),
       voidButton
     ]);
@@ -316,7 +625,10 @@
     });
   }
 
-  $("today-refresh").addEventListener("click", loadToday);
+  $("today-refresh").addEventListener("click", function () {
+    loadToday();
+    loadRoster();
+  });
 
   token = loadToken();
   if (token) start(token);

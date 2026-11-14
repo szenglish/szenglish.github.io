@@ -40,17 +40,37 @@
         </div>
 
         <section class="feedback collect-panel">
-          <form id="collect-form" novalidate>
-            <div class="field">
-              <label for="collect-id">學號</label>
-              <div class="paycheck-input">
-                <input id="collect-id" type="text" inputmode="numeric" autocomplete="off" maxlength="10" placeholder="輸入學號" aria-describedby="collect-error">
-                <button class="button button-navy" type="submit">查詢</button>
-              </div>
-              <p class="field-error" id="collect-error" hidden>請輸入 5 到 10 位數字的學號。</p>
-            </div>
-          </form>
+          <div class="collect-modes" role="tablist" aria-label="找人的方式">
+            <button type="button" role="tab" data-mode="id" aria-selected="true">學號</button>
+            <button type="button" role="tab" data-mode="scan" aria-selected="false">掃描</button>
+            <button type="button" role="tab" data-mode="name" aria-selected="false">姓名</button>
+            <button type="button" role="tab" data-mode="class" aria-selected="false">班級</button>
+          </div>
+
+          <div class="collect-mode" data-panel="id">
+            <form id="id-form" class="paycheck-input" novalidate>
+              <input id="collect-id" type="text" inputmode="numeric" autocomplete="off" maxlength="10" placeholder="輸入學號" aria-label="學號" aria-describedby="collect-error">
+              <button class="button button-navy" type="submit">查詢</button>
+            </form>
+            <p class="field-error" id="collect-error" hidden>請輸入 5 到 10 位數字的學號。</p>
+          </div>
+
+          <div class="collect-mode" data-panel="scan" hidden>
+            <div id="scanner" class="collect-scanner"></div>
+            <p class="collect-hint" id="scan-hint">把學生證條碼對準框線，掃到後會自動顯示。</p>
+          </div>
+
+          <div class="collect-mode" data-panel="name" hidden>
+            <input id="collect-name" class="collect-text" type="search" autocomplete="off" placeholder="輸入姓名，例如 王小明" aria-label="姓名">
+          </div>
+
+          <div class="collect-mode" data-panel="class" hidden>
+            <select id="collect-class" class="collect-text" aria-label="班級"></select>
+            <label class="collect-toggle"><input type="checkbox" id="unpaid-only" checked> 只顯示未繳</label>
+          </div>
+
           <div id="collect-result" class="paycheck-result" aria-live="polite"></div>
+          <ul id="collect-list" class="collect-people"></ul>
         </section>
 
         <section class="collect-today" aria-labelledby="today-title">
@@ -64,6 +84,8 @@
       </div>
     </div>
   </main>
+
+  <div class="collect-toasts" id="toasts" aria-live="polite"></div>
 
   <script src="config.js"></script>
   <script src="js/site.js"></script>
