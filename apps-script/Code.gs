@@ -851,6 +851,7 @@ function merge(base, extra) {
 // 同一份內容產生 HTML 版（排版過的卡片）和純文字版（收信軟體不支援 HTML 時使用）。
 
 var MAIL_URL = "https://szenglish.github.io/borrow.html";
+var MAIL_LOGO = "https://szenglish.github.io/assets/images/logo-email.png";
 
 function mailRows(mail) {
   var r = mail.request || {};
@@ -889,7 +890,11 @@ function mailHtml(mail) {
   return '<!doctype html><html><body style="margin:0;padding:0;background:#f4f1ea">' +
     '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f1ea;padding:24px 12px;font-family:' + font + '">' +
     '<tr><td align="center"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border:1px solid #e5e1d8">' +
-    '<tr><td style="background:#8b1a20;padding:16px 24px;color:#ffffff;font-size:15px;font-weight:700;letter-spacing:0.05em">應用英語科學會｜器材借用</td></tr>' +
+    '<tr><td style="background:#8b1a20;padding:16px 24px">' +
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>' +
+    '<td style="vertical-align:middle"><img src="' + MAIL_LOGO + '" width="163" height="48" alt="樹人醫專應用英語科學會" style="display:block;border:0;width:163px;height:48px;color:#ffffff;font-size:15px;font-weight:700"></td>' +
+    '<td align="right" style="vertical-align:middle;color:#ffffff;font-size:13px;font-weight:700;letter-spacing:0.08em;white-space:nowrap">器材借用通知</td>' +
+    '</tr></table></td></tr>' +
     '<tr><td style="padding:28px 24px 8px">' +
     '<p style="margin:0;font-size:22px;font-weight:900;color:' + accent + '">' + htmlEscape(mail.title) + "</p>" +
     '<p style="margin:16px 0 4px;font-size:15px;color:#1d2a44">' + htmlEscape(mail.greeting) + "</p>" +
