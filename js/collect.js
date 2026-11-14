@@ -13,7 +13,7 @@
   var token = null;
   var refreshTimer = null;
   var state = {
-    officer: "", term: "", fee: 0, loaded: false,
+    officer: "", year: 0, fee: 0, loaded: false,
     members: {}, paid: {}, pending: {},
     mode: "id", selected: null
   };
@@ -146,7 +146,7 @@
       if (!me.ok) throw new Error(me.error);
       state.officer = me.officer;
       $("officer-name").textContent = me.officer;
-      setTerm(me.term, me.fee);
+      setYear(me.year, me.fee);
       signin.hidden = true;
       app.hidden = false;
       setMode(state.mode);
@@ -159,10 +159,10 @@
     });
   }
 
-  function setTerm(term, fee) {
-    state.term = term;
+  function setYear(year, fee) {
+    state.year = year;
     state.fee = fee;
-    $("collect-term").textContent = term + " 學期・" + money(fee);
+    $("collect-term").textContent = year + " 學年・" + money(fee);
   }
 
   $("signout").addEventListener("click", function () {
@@ -178,7 +178,7 @@
   function loadRoster() {
     return api({ action: "roster" }).then(function (data) {
       if (!data.ok) throw new Error(data.error);
-      setTerm(data.term, data.fee);
+      setYear(data.year, data.fee);
       var members = {};
       data.members.forEach(function (m) { members[m.id] = m; });
       state.members = members;
@@ -191,17 +191,28 @@
     });
   }
 
-  // 有填「班級」就用班級；沒填的話，依學號推算年級。
-  // 應英科學號是 5 + 入學年後兩碼 + 科別 06 + 座號 3 碼，例如 51106069 → 111 學年入學。
+  // 入學年由 Apps Script 依學號推算（例如 51106069 是 111 學年入學）。
+  function entryOf(member) {
+    if (member.entry) return member.entry;
+    var match = /^5(\d{2})\d{5}$/.exec(member.id);
+    return match ? 100 + Number(match[1]) : 0;
+  }
+
+  // 五專讀五年：入學年加 5 以後就算畢業。
+  function isGraduated(member) {
+    var entry = member ? entryOf(member) : 0;
+    return Boolean(entry && state.year && state.year - entry >= 5);
+  }
+
+  // 有填「班級」就用班級；沒填的話，依入學年分成一到五年級，已畢業的排在最後。
   function groupOf(member) {
     if (member.className) return { key: "0" + member.className, label: member.className };
-    var match = /^5(\d{2})06\d{3}$/.exec(member.id);
-    var termYear = parseInt(state.term, 10);
-    if (!match) return { key: "9", label: "其他學號（轉入或他科）" };
-    var year = 100 + Number(match[1]);
-    var grade = termYear - year + 1;
-    var label = grade >= 1 && grade <= 5 ? GRADES[grade - 1] + "年級（" + year + " 入學）" : year + " 入學";
-    return { key: "1" + (999 - year), label: label };
+    var entry = entryOf(member);
+    if (!entry) return { key: "9", label: "其他學號" };
+    if (isGraduated(member)) return { key: "8" + (999 - entry), label: "已畢業（" + entry + " 入學）" };
+    var grade = state.year - entry + 1;
+    var label = grade >= 1 && grade <= 5 ? GRADES[grade - 1] + "年級（" + entry + " 入學）" : entry + " 入學";
+    return { key: "1" + (999 - entry), label: label };
   }
 
   function statusOf(id) {
@@ -241,7 +252,7 @@
       delete state.pending[id];
       if (!res.ok && res.payment) {
         state.paid[id] = res.payment;
-        note.update({ kind: "warn", text: member.name + " 本學期已經繳過了", sub: "經手人 " + res.payment.handler + "，請不要重複收費。", timeout: 8 });
+        note.update({ kind: "warn", text: member.name + " 已經繳過會費了", sub: "經手人 " + res.payment.handler + "，請不要重複收費。", timeout: 8 });
         render();
         return;
       }
@@ -305,7 +316,7 @@
 
   function badge(id) {
     var status = statusOf(id);
-    var text = { paid: "本學期已繳", pending: "登記中…", unpaid: "本學期未繳" }[status];
+    var text = { paid: "已繳費", pending: "登記中…", unpaid: "未繳費" }[status];
     return el("span", { class: "collect-chip is-" + status }, [status === "paid" ? icon("check") : null, document.createTextNode(text)]);
   }
 
@@ -333,6 +344,9 @@
         el("div", {}, [el("dt", { text: "經手人" }), el("dd", { text: payment.handler })]),
         el("div", {}, [el("dt", { text: "時間" }), el("dd", { text: ((payment.date || "") + " " + (payment.time || "")).trim() })])
       ]) : null,
+      status === "unpaid" && isGraduated(member)
+        ? el("p", { class: "collect-warning", text: "依學號推算已經畢業。延畢的同學一樣可以收款。" })
+        : null,
       pay,
       state.mode === "scan" ? scanAgainButton() : null
     ]);

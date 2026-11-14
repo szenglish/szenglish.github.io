@@ -1809,6 +1809,15 @@ html:has(.sub-nav) { scroll-padding-top: 150px; }
 
 .collect-pay + .form-message:empty { display: none; }
 
+.collect-warning {
+  margin-top: 16px;
+  padding: 10px 12px;
+  background: var(--warn-soft);
+  color: #6b4a00;
+  font-size: 15px;
+  font-weight: 700;
+}
+
 .collect-again { display: block; width: 100%; margin-top: 8px; }
 
 .collect-new { margin-top: 8px; }

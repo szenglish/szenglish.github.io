@@ -671,7 +671,6 @@
       if (!result.found) {
         return notice("找不到學號 " + id + " 的資料", "請確認學號是否正確。如果已經繳費，請聯絡科學會幹部協助確認。");
       }
-      var term = result.term ? result.term + " 學期" : "本學期";
       return el("div", { class: "paycheck-card " + (result.paid ? "is-paid" : "is-unpaid") }, [
         el("div", { class: "paycheck-card-head" }, [
           el("div", {}, [
@@ -681,12 +680,13 @@
           statusChip(result.paid)
         ]),
         el("dl", { class: "paycheck-details" }, [
-          detail("學期", term),
           detail("收據編號", result.receipt),
           detail("繳費日期", result.paidAt),
           detail("經手人", result.handler)
         ]),
-        result.paid ? null : el("p", { class: "paycheck-card-text", text: term + "的會費還沒有登記。請攜帶會費到科學會辦公室（A717）繳交，或洽詢收費的幹部。" })
+        result.paid ? null : el("p", { class: "paycheck-card-text", text: result.graduated
+          ? "還沒有繳費紀錄。依學號推算你已經畢業，如有疑問請聯絡科學會幹部。"
+          : "還沒有繳費紀錄。會費入會時繳一次，五年有效。請攜帶會費到科學會辦公室（A717）繳交，或洽詢收費的幹部。" })
       ]);
     }
 

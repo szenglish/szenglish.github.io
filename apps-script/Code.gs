@@ -14,7 +14,7 @@ var SHEETS = {
 var HEADERS = {
   feedback: ["時間", "年級", "使用心得", "是否完成預期事項", "建議"],
   roster: ["學號", "姓名", "班級", "入會日期", "備註"],
-  payments: ["時間", "學期", "學號", "姓名", "金額", "收據編號", "經手人", "經手人信箱", "狀態", "作廢原因"],
+  payments: ["時間", "學年", "學號", "姓名", "金額", "收據編號", "經手人", "經手人信箱", "狀態", "作廢原因"],
   settings: ["項目", "內容"],
   officers: ["Gmail", "姓名", "職稱"]
 };
@@ -33,7 +33,7 @@ function setup() {
   });
   var settings = getSheet("settings");
   if (settings.getLastRow() === 1) {
-    settings.getRange(2, 1, 2, 2).setValues([["目前學期", "115-1"], ["會費金額", ""]]);
+    settings.getRange(2, 1, 2, 2).setValues([["目前學年", 115], ["會費金額", ""]]);
   }
   ["roster", "payments"].forEach(function (key) {
     var col = HEADERS[key].indexOf("學號") + 1;
@@ -107,20 +107,21 @@ function publicLookup(rawId) {
   var snap = snapshot();
   var member = snap.roster[id];
   var payment = snap.paid[id];
-  if (!member && !payment) return { ok: true, found: false, term: snap.term };
+  if (!member && !payment) return { ok: true, found: false };
   return {
     ok: true,
     found: true,
-    term: snap.term,
     name: maskName((member && member.name) || (payment && payment.name)),
     paid: Boolean(payment),
+    graduated: isGraduated(id, member && member.joined, snap.year),
     receipt: payment ? payment.receipt : "",
     paidAt: payment ? payment.date : "",
     handler: payment ? payment.handler : ""
   };
 }
 
-// 名冊與本學期已繳名單，快取 60 秒；收款或作廢時會立刻清掉快取。
+// 名冊與已繳名單，快取 60 秒；收款或作廢時會立刻清掉快取。
+// 五專會費入會時繳一次，五年有效，所以只要有一筆有效的收款就算已繳。
 function snapshot() {
   var cache = CacheService.getScriptCache();
   var cached = cache.get("snapshot");
@@ -130,17 +131,33 @@ function snapshot() {
   var roster = {};
   readTable("roster").forEach(function (r) {
     var id = idOf(r["學號"]);
-    if (id) roster[id] = { name: text(r["姓名"]) };
+    if (id) roster[id] = { name: text(r["姓名"]), joined: dateText(r["入會日期"]) };
   });
   var paid = {};
-  currentPayments(settings.term).forEach(function (p) {
+  allPayments().forEach(function (p) {
     if (p.void) return;
     paid[p.id] = { name: p.name, receipt: p.receipt, date: p.date, handler: p.handler };
   });
-  var snap = { term: settings.term, roster: roster, paid: paid };
+  var snap = { year: settings.year, roster: roster, paid: paid };
   var data = JSON.stringify(snap);
   if (data.length < 100000) cache.put("snapshot", data, CACHE_SECONDS);
   return snap;
+}
+
+// 入學年：應英科學號是 5 + 入學年後兩碼 + 科別 + 座號，例如 51106069 是 111 學年入學；
+// 學號看不出來時，改用入會日期推算（8 月以後算當學年）。
+function entryYear(id, joined) {
+  var match = /^5(\d{2})\d{5}$/.exec(id);
+  if (match) return 100 + Number(match[1]);
+  var date = /^(\d{4})\D(\d{1,2})/.exec(joined || "");
+  if (!date) return 0;
+  return Number(date[1]) - 1911 - (Number(date[2]) >= 8 ? 0 : 1);
+}
+
+// 五專讀五年：入學年加 5 以後就算畢業（延畢的同學一樣可以收款）。
+function isGraduated(id, joined, year) {
+  var entry = entryYear(id, joined);
+  return Boolean(entry && year && year - entry >= 5);
 }
 
 // 只顯示姓氏和最後一個字，例如「王小明」→「王○明」。
@@ -198,31 +215,33 @@ function verifyOfficer(token) {
 
 function officerMe(input, officer) {
   var settings = readSettings();
-  return { ok: true, officer: officer.name, email: officer.email, term: settings.term, fee: settings.fee };
+  return { ok: true, officer: officer.name, email: officer.email, year: settings.year, fee: settings.fee };
 }
 
-// 登入後把整份名冊和本學期已繳名單一次傳給收費頁，之後查學號、找姓名、看班級都不用再等網路。
+// 登入後把整份名冊和已繳名單一次傳給收費頁，之後查學號、找姓名、看班級都不用再等網路。
 function officerRoster(input, officer) {
   var settings = readSettings();
   var members = readTable("roster").map(function (r) {
-    return { id: idOf(r["學號"]), name: text(r["姓名"]), className: text(r["班級"]) };
+    var id = idOf(r["學號"]);
+    var joined = dateText(r["入會日期"]);
+    return { id: id, name: text(r["姓名"]), className: text(r["班級"]), entry: entryYear(id, joined) };
   }).filter(function (m) { return m.id; });
   var paid = {};
-  currentPayments(settings.term).forEach(function (p) {
+  allPayments().forEach(function (p) {
     if (!p.void) paid[p.id] = publicPayment(p);
   });
-  return { ok: true, term: settings.term, fee: settings.fee, members: members, paid: paid };
+  return { ok: true, year: settings.year, fee: settings.fee, members: members, paid: paid };
 }
 
 function officerLookup(input, officer) {
   var id = requireId(input.id);
   var settings = readSettings();
   var member = findMember(id);
-  var payment = currentPayments(settings.term).filter(function (p) { return p.id === id && !p.void; })[0];
+  var payment = allPayments().filter(function (p) { return p.id === id && !p.void; })[0];
   return {
     ok: true,
     id: id,
-    term: settings.term,
+    year: settings.year,
     fee: settings.fee,
     member: member ? { name: member.name, className: member.className } : null,
     payment: payment ? publicPayment(payment) : null
@@ -233,12 +252,12 @@ function officerPay(input, officer) {
   var id = requireId(input.id);
   return withLock(function () {
     var settings = readSettings();
-    if (!settings.term) throw new Error("請先在「設定」分頁填寫目前學期");
+    if (!settings.year) throw new Error("請先在「設定」分頁填寫目前學年");
     if (!(settings.fee > 0)) throw new Error("請先在「設定」分頁填寫會費金額");
 
-    var payments = currentPayments(settings.term);
+    var payments = allPayments();
     var existing = payments.filter(function (p) { return p.id === id && !p.void; })[0];
-    if (existing) return { ok: false, error: "這位同學本學期已經繳過了", payment: publicPayment(existing) };
+    if (existing) return { ok: false, error: "這位同學已經繳過會費了", payment: publicPayment(existing) };
 
     var member = findMember(id);
     if (!member) {
@@ -252,10 +271,10 @@ function officerPay(input, officer) {
       }));
     }
 
-    var receipt = nextReceipt(settings.term, payments);
+    var receipt = nextReceipt(settings.year, payments);
     var now = new Date();
     getSheet("payments", true).appendRow(rowFor("payments", {
-      "時間": now, "學期": settings.term, "學號": "'" + id, "姓名": safeText(member.name), "金額": settings.fee,
+      "時間": now, "學年": settings.year, "學號": "'" + id, "姓名": safeText(member.name), "金額": settings.fee,
       "收據編號": receipt, "經手人": officer.name, "經手人信箱": officer.email, "狀態": "有效"
     }));
     CacheService.getScriptCache().remove("snapshot");
@@ -270,7 +289,7 @@ function officerVoid(input, officer) {
   if (!reason) throw new Error("請填寫作廢原因");
   return withLock(function () {
     var settings = readSettings();
-    var target = currentPayments(settings.term).filter(function (p) { return p.receipt === receipt; })[0];
+    var target = allPayments().filter(function (p) { return p.receipt === receipt; })[0];
     if (!target) throw new Error("找不到這張收據");
     if (target.void) throw new Error("這張收據已經作廢了");
     var sheet = getSheet("payments");
@@ -285,13 +304,13 @@ function officerVoid(input, officer) {
 function officerToday(input, officer) {
   var settings = readSettings();
   var today = formatDate(new Date(), "yyyy/MM/dd");
-  var items = currentPayments(settings.term).filter(function (p) { return p.date === today; }).reverse();
+  var items = allPayments().filter(function (p) { return p.date === today; }).reverse();
   var valid = items.filter(function (p) { return !p.void; });
   var mine = valid.filter(function (p) { return p.email === officer.email; });
   function sum(list) { return list.reduce(function (total, p) { return total + p.amount; }, 0); }
   return {
     ok: true,
-    term: settings.term,
+    year: settings.year,
     total: { count: valid.length, amount: sum(valid) },
     mine: { count: mine.length, amount: sum(mine) },
     items: items.slice(0, 200).map(function (p) {
@@ -310,9 +329,9 @@ function publicPayment(p) {
   return { receipt: p.receipt, date: p.date, time: p.time, handler: p.handler };
 }
 
-// 收據編號：學期去掉符號加流水號，例如 115-1 學期是 1151-001、1151-002…，作廢的號碼不再使用。
-function nextReceipt(term, payments) {
-  var prefix = String(term).replace(/[^0-9A-Za-z]/g, "") + "-";
+// 收據編號：學年加流水號，例如 115 學年是 115-001、115-002…，作廢的號碼不再使用。
+function nextReceipt(year, payments) {
+  var prefix = year + "-";
   var max = 0;
   payments.forEach(function (p) {
     if (p.receipt.indexOf(prefix) === 0) max = Math.max(max, Number(p.receipt.slice(prefix.length)) || 0);
@@ -358,7 +377,7 @@ function rowFor(key, values) {
 function readSettings() {
   var map = {};
   getSheet("settings").getDataRange().getValues().forEach(function (row) { map[text(row[0])] = row[1]; });
-  return { term: text(map["目前學期"]), fee: Number(map["會費金額"]) || 0 };
+  return { year: parseInt(text(map["目前學年"]), 10) || 0, fee: Number(map["會費金額"]) || 0 };
 }
 
 function findMember(id) {
@@ -366,9 +385,10 @@ function findMember(id) {
   return match ? { name: text(match["姓名"]), className: text(match["班級"]) } : null;
 }
 
-function currentPayments(term) {
+// 所有收款紀錄（含作廢的），依試算表的順序。
+function allPayments() {
   return readTable("payments").filter(function (r) {
-    return term && text(r["學期"]) === term && idOf(r["學號"]);
+    return idOf(r["學號"]);
   }).map(function (r) {
     var time = r["時間"] instanceof Date ? r["時間"] : new Date(r["時間"]);
     var valid = !isNaN(time.getTime());
@@ -416,6 +436,10 @@ function text(value) {
 function safeText(value) {
   value = text(value);
   return /^[=+\-@]/.test(value) ? "'" + value : value;
+}
+
+function dateText(value) {
+  return value instanceof Date ? formatDate(value, "yyyy/MM/dd") : text(value);
 }
 
 function formatDate(date, pattern) {
