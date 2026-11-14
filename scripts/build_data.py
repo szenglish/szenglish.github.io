@@ -233,16 +233,33 @@ def build_share_pages(news):
     return len(news)
 
 
+def build_info():
+    """頁尾的版本號：1.<部署次數>.0.<台灣日期>.<時間>，加上分支與 commit。
+    在 GitHub Actions 以外執行（本機預覽）時標成 local。"""
+    import os
+    from datetime import datetime, timedelta, timezone
+    now = datetime.now(timezone(timedelta(hours=8)))
+    run = os.environ.get("GITHUB_RUN_NUMBER", "0")
+    sha = os.environ.get("GITHUB_SHA", "")
+    return {
+        "version": f"1.{run}.0.{now:%Y%m%d}.{now:%H%M%S}",
+        "branch": os.environ.get("GITHUB_REF_NAME", "local"),
+        "commit": sha[:8],
+        "commitUrl": f"https://github.com/{os.environ.get('GITHUB_REPOSITORY', '')}/commit/{sha}" if sha else "",
+    }
+
+
 def main():
     site = {
         "news": build_news(),
         "events": build_events(),
         "members": build_members(),
         "documents": build_documents(),
+        "build": build_info(),
     }
     OUTPUT.parent.mkdir(exist_ok=True)
     OUTPUT.write_text(json.dumps(site, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    counts = "、".join(f"{key} {len(value)} 筆" for key, value in site.items())
+    counts = "、".join(f"{key} {len(value)} 筆" for key, value in site.items() if isinstance(value, list))
     print(f"已產生 {OUTPUT.relative_to(ROOT)}：{counts}")
     print(f"已產生 {build_share_pages(site['news'])} 個文章分享頁")
 

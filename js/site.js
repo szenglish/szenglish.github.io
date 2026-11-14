@@ -103,6 +103,7 @@
       ["寄信給我們", "mailto:" + CONFIG.email, "mail"]
     ];
 
+    var version = el("p", { class: "footer-version" });
     var footer = el("footer", { class: "site-footer" }, [
       el("div", { class: "wrap footer-main" }, [
         el("div", { class: "footer-brand" }, [
@@ -126,26 +127,42 @@
       ]),
       el("div", { class: "footer-bar" }, [
         el("div", { class: "wrap footer-bar-inner" }, [
-          el("p", { text: "© " + new Date().getFullYear() + " 樹人醫專應用英語科學會。轉載圖文請先來信徵求同意。" })
+          el("p", { text: "© " + new Date().getFullYear() + " 樹人醫專應用英語科學會。轉載圖文請先來信徵求同意。" }),
+          version
         ])
       ])
     ]);
     document.body.appendChild(footer);
+
+    // 版本號由部署時的 scripts/build_data.py 寫進 site.json。
+    loadData(function (data) {
+      var build = data.build;
+      if (!build || !build.version) return;
+      version.appendChild(document.createTextNode("Version: " + build.version + " " + build.branch + " "));
+      if (build.commit) {
+        version.appendChild(build.commitUrl
+          ? el("a", { href: build.commitUrl, target: "_blank", rel: "noopener", text: build.commit })
+          : el("span", { text: build.commit }));
+      }
+    }, function () {});
   }
 
   // data/site.json 由 scripts/build_data.py 從 content/ 產生。
+  // 頁尾和頁面內容都會用到，同一頁只下載一次。
+  var dataRequest = null;
+
   function loadData(onData, onError) {
-    // 每次都向伺服器確認，後台發布後訪客才不會看到快取的舊內容。
-    fetch("data/site.json", { cache: "no-cache" })
-      .then(function (res) {
+    if (!dataRequest) {
+      // 每次開頁都向伺服器確認，後台發布後訪客才不會看到快取的舊內容。
+      dataRequest = fetch("data/site.json", { cache: "no-cache" }).then(function (res) {
         if (!res.ok) throw new Error("HTTP " + res.status);
         return res.json();
-      })
-      .then(onData)
-      .catch(function (err) {
-        console.error("無法載入網站資料", err);
-        onError();
       });
+    }
+    dataRequest.then(onData, function (err) {
+      console.error("無法載入網站資料", err);
+      onError();
+    });
   }
 
   // 文章網址用 news/<id>/ 分享頁（部署時產生），貼到 LINE、Facebook 才有預覽圖。

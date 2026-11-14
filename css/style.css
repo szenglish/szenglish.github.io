@@ -2146,6 +2146,19 @@ html:has(.sub-nav) { scroll-padding-top: 150px; }
   padding-bottom: 14px;
 }
 
+/* 版本號：比版權文字更淡更小，需要時才看得到 */
+.footer-version {
+  color: #6f7c8b;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.footer-version:empty { display: none; }
+
+.footer-version a { color: inherit; }
+
+.footer-version a:hover { color: var(--white); }
+
 
 @media (max-width: 1020px) {
   .nav-toggle { display: block; }
