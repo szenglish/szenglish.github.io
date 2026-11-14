@@ -659,9 +659,9 @@ function borrowSubmit(who, input) {
       "借用物品": items.map(function (i) { return i.name + " × " + i.qty + " " + catalog[i.name].unit; }).join("\n"),
       "用途說明": safeText(purpose), "使用地點": safeText(place), "狀態": BORROW.equipApprove
     }));
-    notifyRole("equip", "【器材借用】新申請待審核 " + no, {
-      title: "新的器材借用申請",
-      intro: "有一筆新的器材借用申請，等待器材長審核。",
+    notifyRole("equip", "【應用英語科學會】器材借用申請待審核通知（" + no + "）", {
+      title: "器材借用申請待審核",
+      intro: "系統收到一筆新的器材借用申請，請進行器材長審核。",
       request: { no: no, unit: unit, name: name, id: who.student.id, start: range.start, end: range.end,
         items: items.map(function (i) { return i.name + " × " + i.qty + " " + catalog[i.name].unit; }).join("\n"),
         place: place, purpose: purpose, phone: phone },
@@ -693,17 +693,17 @@ function borrowAct(who, input) {
         var left = shortages(r);
         if (left) throw new Error(left);
         setRequest(r, { "狀態": BORROW.presidentApprove, "器材長審核": "同意（" + stamp + "）" });
-        notifyRole("president", "【器材借用】待會長審核 " + r.no, {
-          title: "器材借用申請待會長審核",
-          intro: "器材長已同意以下申請，請進行會長審核。",
+        notifyRole("president", "【應用英語科學會】器材借用申請待會長核定通知（" + r.no + "）", {
+          title: "器材借用申請待會長核定",
+          intro: "以下申請已經器材長審核同意，請進行會長核定。",
           request: r,
           button: "前往審核"
         });
       } else if (r.status === BORROW.presidentApprove) {
         if (!who.roles.president) throw new Error("此階段須由會長審核");
         setRequest(r, { "狀態": BORROW.approved, "會長審核": "同意（" + stamp + "）" });
-        mailApplicant(r, "【器材借用】申請已核准 " + r.no, {
-          title: "申請已核准",
+        mailApplicant(r, "【應用英語科學會】器材借用申請核准通知（" + r.no + "）", {
+          title: "器材借用申請已核准",
           tone: "ok",
           intro: "您的器材借用申請已通過審核。請於借用期間開始時，至科學會辦公室（A717）領取器材。",
           note: "領取時請與承辦人員當面清點器材；器材若有遺失或損壞，需照價賠償。"
@@ -721,8 +721,8 @@ function borrowAct(who, input) {
       var change = { "狀態": BORROW.rejected, "退回原因": safeText(reason) };
       change[column] = "退回（" + stamp + "）";
       setRequest(r, change);
-      mailApplicant(r, "【器材借用】申請未通過 " + r.no, {
-        title: "申請未通過",
+      mailApplicant(r, "【應用英語科學會】器材借用申請退回通知（" + r.no + "）", {
+        title: "器材借用申請已退回",
         tone: "warn",
         intro: "很抱歉，您的器材借用申請未通過審核。",
         extra: [["退回原因", reason]],
@@ -734,8 +734,8 @@ function borrowAct(who, input) {
     } else if (act === "return") {
       if (r.status !== BORROW.lent) throw new Error("器材借出後方可登記歸還");
       setRequest(r, { "狀態": BORROW.returned, "歸還驗收": stamp, "歸還備註": safeText(text(input.note).slice(0, 200)) });
-      mailApplicant(r, "【器材借用】器材已歸還 " + r.no, {
-        title: "器材已歸還",
+      mailApplicant(r, "【應用英語科學會】器材歸還完成通知（" + r.no + "）", {
+        title: "器材歸還完成",
         tone: "ok",
         intro: "您借用的器材已完成歸還驗收，感謝您的配合。",
         extra: text(input.note) ? [["驗收備註", text(input.note)]] : []
@@ -915,7 +915,7 @@ function sendMail(to, subject, mail) {
         return text(r["職稱"]) === "開發者" && text(r["Gmail"]);
       }).map(function (r) { return text(r["Gmail"]); });
       if (!developers.length) return;
-      subject = "【測試｜原收件人 " + to + "】" + subject;
+      subject = "[測試模式] " + subject + "｜原收件人：" + to;
       to = developers.join(",");
     }
     MailApp.sendEmail({ to: to, subject: subject, body: mailText(mail), htmlBody: mailHtml(mail), name: "應用英語科學會" });
