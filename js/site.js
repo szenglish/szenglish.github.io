@@ -138,12 +138,8 @@
     loadData(function (data) {
       var build = data.build;
       if (!build || !build.version) return;
-      version.appendChild(document.createTextNode("Version: " + build.version + " " + build.branch + " "));
-      if (build.commit) {
-        version.appendChild(build.commitUrl
-          ? el("a", { href: build.commitUrl, target: "_blank", rel: "noopener", text: build.commit })
-          : el("span", { text: build.commit }));
-      }
+      // 只顯示文字，不連到 GitHub。
+      version.textContent = ["Version:", build.version, build.branch, build.commit].filter(Boolean).join(" ");
     }, function () {});
   }
 

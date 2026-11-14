@@ -2155,10 +2155,6 @@ html:has(.sub-nav) { scroll-padding-top: 150px; }
 
 .footer-version:empty { display: none; }
 
-.footer-version a { color: inherit; }
-
-.footer-version a:hover { color: var(--white); }
-
 
 @media (max-width: 1020px) {
   .nav-toggle { display: block; }

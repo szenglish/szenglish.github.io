@@ -245,7 +245,6 @@ def build_info():
         "version": f"1.{run}.0.{now:%Y%m%d}.{now:%H%M%S}",
         "branch": os.environ.get("GITHUB_REF_NAME", "local"),
         "commit": sha[:8],
-        "commitUrl": f"https://github.com/{os.environ.get('GITHUB_REPOSITORY', '')}/commit/{sha}" if sha else "",
     }
 
 
