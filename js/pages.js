@@ -658,6 +658,15 @@
       ]);
     }
 
+    function statusChip(paid) {
+      var chip = el("span", { class: "paycheck-status" });
+      if (paid) chip.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+      chip.appendChild(document.createTextNode(paid ? "已繳費" : "未繳費"));
+      return chip;
+    }
+
+    var lastQuery = "";
+
     function resultCard(id, result) {
       if (!result.found) {
         return notice("找不到學號 " + id + " 的資料", "請確認學號是否正確。如果已經繳費，請聯絡科學會幹部協助確認。");
@@ -669,7 +678,7 @@
             el("p", { class: "paycheck-card-id", text: id }),
             el("p", { class: "paycheck-card-name", text: result.name || "（未登記姓名）" })
           ]),
-          el("span", { class: "paycheck-status", text: result.paid ? "已繳費" : "未繳費" })
+          statusChip(result.paid)
         ]),
         el("dl", { class: "paycheck-details" }, [
           detail("學期", term),
@@ -689,6 +698,8 @@
       if (clean !== input.value) input.value = clean;
       error.hidden = true;
       input.removeAttribute("aria-invalid");
+      // 一般學號是 8 碼，打滿就直接查詢。
+      if (clean.length === 8 && clean !== lastQuery) form.requestSubmit();
     });
 
     form.addEventListener("submit", function (event) {
@@ -706,6 +717,7 @@
         return;
       }
 
+      lastQuery = id;
       submit.disabled = true;
       submit.textContent = "查詢中…";
       target.setAttribute("aria-busy", "true");
@@ -717,6 +729,11 @@
       }).then(function (result) {
         if (!result.ok) throw new Error(result.error || "查詢失敗");
         replace(target, [resultCard(id, result)]);
+        // 手機上收起鍵盤，讓結果完整出現在畫面上。
+        if (window.matchMedia("(max-width: 640px)").matches) {
+          input.blur();
+          target.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        }
       }).catch(function (err) {
         console.error("會費查詢失敗", err);
         replace(target, [notice("查詢時發生錯誤", "請稍後再試，或寄信到 " + S.config.email + "。")]);

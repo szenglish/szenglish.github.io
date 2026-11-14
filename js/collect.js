@@ -35,6 +35,16 @@
     nodes.forEach(function (node) { if (node) target.appendChild(node); });
   }
 
+  function icon(name) {
+    var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("class", "icon");
+    svg.setAttribute("aria-hidden", "true");
+    var use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+    use.setAttribute("href", "#i-" + name);
+    svg.appendChild(use);
+    return svg;
+  }
+
   function money(n) { return "NT$" + Number(n || 0).toLocaleString("en-US"); }
 
   function digitsOnly(value) {
@@ -145,10 +155,11 @@
   function setTerm(term, fee) {
     state.term = term;
     state.fee = fee;
-    $("collect-term").textContent = term + " 學期・會費 " + money(fee);
+    $("collect-term").textContent = term + " 學期・" + money(fee);
   }
 
   $("signout").addEventListener("click", function () {
+    if (!confirm("要登出 " + state.officer + " 嗎？")) return;
     if (window.google) google.accounts.id.disableAutoSelect();
     state.selected = null;
     render();
@@ -232,7 +243,7 @@
       state.paid[id] = { receipt: res.receipt, handler: state.officer, time: res.time };
       note.update({
         kind: "ok",
-        text: "✓ " + res.name + " 收款完成",
+        text: res.name + " 收款完成",
         sub: money(res.amount) + "・" + res.receipt,
         action: { label: "復原", run: function () { undo(id, res.receipt, res.name); } },
         timeout: UNDO_SECONDS
@@ -288,7 +299,7 @@
   function badge(id) {
     var status = statusOf(id);
     var text = { paid: "本學期已繳", pending: "登記中…", unpaid: "本學期未繳" }[status];
-    return el("span", { class: "paycheck-status", text: text });
+    return el("span", { class: "collect-chip is-" + status }, [status === "paid" ? icon("check") : null, document.createTextNode(text)]);
   }
 
   function personCard(id) {
@@ -340,7 +351,7 @@
           el("p", { class: "paycheck-card-id", text: id }),
           el("p", { class: "paycheck-card-name", text: "新會員" })
         ]),
-        el("span", { class: "paycheck-status", text: "名冊沒有" })
+        el("span", { class: "collect-chip is-new", text: "名冊沒有" })
       ]),
       el("div", { class: "collect-new" }, [
         el("div", { class: "field" }, [el("label", { for: "new-name", text: "姓名" }), name]),
@@ -366,7 +377,7 @@
       right = el("button", { class: "button button-navy collect-row-pay", type: "button", text: "收款" });
       right.addEventListener("click", function () { collect(member.id); });
     } else {
-      right = el("span", { class: "collect-row-status is-" + status, text: status === "paid" ? "✓ 已繳" : "登記中…" });
+      right = el("span", { class: "collect-chip is-" + status }, [status === "paid" ? icon("check") : null, document.createTextNode(status === "paid" ? "已繳" : "登記中…")]);
     }
     return el("li", { class: "is-" + status }, [
       el("div", { class: "collect-row-main" }, [
@@ -399,7 +410,7 @@
       var members = all.filter(function (m) {
         return groupOf(m).label === classSelect.value && (!unpaidOnly.checked || statusOf(m.id) !== "paid");
       }).sort(function (a, b) { return a.id.localeCompare(b.id); });
-      rows = members.length ? members.map(personRow) : [el("li", { class: "collect-people-empty", text: "這一班都繳完了 🎉" })];
+      rows = members.length ? members.map(personRow) : [el("li", { class: "collect-people-empty", text: "這一班都繳完了。" })];
     }
     if (!state.loaded && (state.mode === "name" || state.mode === "class")) {
       rows = [el("li", { class: "collect-people-empty", text: "名冊載入中…" })];
@@ -412,7 +423,7 @@
   function setMode(mode) {
     state.mode = mode;
     state.selected = null;
-    document.querySelectorAll(".collect-modes [data-mode]").forEach(function (tab) {
+    document.querySelectorAll(".collect-tabs [data-mode]").forEach(function (tab) {
       tab.setAttribute("aria-selected", String(tab.getAttribute("data-mode") === mode));
     });
     document.querySelectorAll(".collect-mode").forEach(function (panel) {
@@ -421,19 +432,26 @@
     if (mode === "scan") startScanner();
     else stopScanner();
     render();
+    window.scrollTo({ top: 0 });
     if (mode === "id") idInput.focus();
     if (mode === "name") nameInput.focus();
   }
 
-  document.querySelectorAll(".collect-modes [data-mode]").forEach(function (tab) {
+  document.querySelectorAll(".collect-tabs [data-mode]").forEach(function (tab) {
     tab.addEventListener("click", function () { setMode(tab.getAttribute("data-mode")); });
   });
+
+  function setIdHelp(isError) {
+    idError.textContent = isError ? "學號是 5 到 10 位數字，請再確認一次。" : "打滿 8 碼會自動查詢。";
+    idError.classList.toggle("is-error", isError);
+    if (isError) idInput.setAttribute("aria-invalid", "true");
+    else idInput.removeAttribute("aria-invalid");
+  }
 
   idInput.addEventListener("input", function () {
     var clean = digitsOnly(idInput.value);
     if (clean !== idInput.value) idInput.value = clean;
-    idError.hidden = true;
-    idInput.removeAttribute("aria-invalid");
+    setIdHelp(false);
     // 一般學號是 8 碼，打滿就直接查，不用再按查詢。
     if (clean.length === 8) select(clean);
     else if (state.selected) { state.selected = null; render(); }
@@ -443,8 +461,7 @@
     event.preventDefault();
     var id = idInput.value.trim();
     if (!ID_PATTERN.test(id)) {
-      idError.hidden = false;
-      idInput.setAttribute("aria-invalid", "true");
+      setIdHelp(true);
       idInput.focus();
       return;
     }
@@ -619,6 +636,7 @@
     api({ action: "today" }).then(function (data) {
       if (!data.ok) throw new Error(data.error);
       replace($("today-stats"), [stat("全部幹部", data.total), stat("我經手", data.mine)]);
+      $("today-chip").textContent = "今日 " + data.total.count + " 筆";
       replace(list, data.items.length ? data.items.map(todayRow) : [el("li", { class: "collect-list-empty", text: "今天還沒有收款紀錄。" })]);
     }).catch(function (err) {
       if (!err.handled) replace(list, [el("li", { class: "collect-list-empty", text: "讀取失敗：" + err.message })]);

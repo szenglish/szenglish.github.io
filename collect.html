@@ -2,10 +2,11 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>收費登記｜應用英語科學會</title>
   <meta name="robots" content="noindex">
   <meta name="theme-color" content="#8b1a20">
+  <meta name="apple-mobile-web-app-title" content="收費登記">
   <link rel="icon" href="favicon.ico" sizes="48x48">
   <link rel="icon" href="assets/icons/icon-192.png" type="image/png" sizes="192x192">
   <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
@@ -16,72 +17,96 @@
   <script src="https://accounts.google.com/gsi/client" async></script>
 </head>
 <body data-page="collect" class="collect-page">
-  <main>
-    <div class="page-banner collect-banner">
-      <div class="wrap page-banner-inner">
-        <p class="eyebrow">Officers only</p>
-        <p class="banner-zh">幹部收費登記</p>
-        <p id="collect-term">登入後開始收費</p>
-      </div>
-    </div>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-hash" viewBox="0 0 24 24"><path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18"/></symbol>
+    <symbol id="i-scan" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M8 7v10M12 7v10M16 7v10"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+    <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36L21 8M21 3v5h-5"/></symbol>
+  </svg>
 
-    <div class="wrap collect">
-      <section id="collect-signin" class="feedback collect-signin">
-        <h2>請用幹部 Google 帳號登入</h2>
-        <p class="feedback-intro">只有列在試算表「幹部」分頁的帳號可以使用。從 LINE 點開時，請先改用 Chrome 或 Safari 開啟。</p>
+  <main>
+    <section id="collect-signin" class="collect-signin">
+      <div class="collect-signin-hero">
+        <img src="assets/images/logo.webp" alt="樹人醫專應用英語科學會" width="190" height="56">
+        <p class="eyebrow">Officers only</p>
+        <h1>幹部收費登記</h1>
+      </div>
+      <div class="collect-signin-body">
+        <p>請用幹部的 Google 帳號登入。只有列在試算表「幹部」分頁的帳號可以使用。</p>
         <div id="signin-button" class="signin-button"></div>
         <p class="form-message" id="signin-message" role="status"></p>
-      </section>
+        <p class="collect-signin-tip">從 LINE 點開時，請先按右上角，改用 Chrome 或 Safari 開啟。</p>
+      </div>
+    </section>
 
-      <div id="collect-app" hidden>
-        <div class="collect-officer">
-          <p>經手人 <strong id="officer-name"></strong></p>
-          <button type="button" class="text-button" id="signout">登出</button>
+    <div id="collect-app" class="collect-app" hidden>
+      <header class="collect-bar">
+        <div class="collect-bar-main">
+          <p class="collect-bar-title">幹部收費</p>
+          <p class="collect-bar-term" id="collect-term"></p>
         </div>
+        <a class="collect-bar-chip" href="#today" id="today-chip">今日 0 筆</a>
+        <button type="button" class="collect-bar-user" id="signout">
+          <span id="officer-name"></span>
+          <svg class="icon" aria-hidden="true"><use href="#i-logout"/></svg>
+        </button>
+      </header>
 
-        <section class="feedback collect-panel">
-          <div class="collect-modes" role="tablist" aria-label="找人的方式">
-            <button type="button" role="tab" data-mode="id" aria-selected="true">學號</button>
-            <button type="button" role="tab" data-mode="scan" aria-selected="false">掃描</button>
-            <button type="button" role="tab" data-mode="name" aria-selected="false">姓名</button>
-            <button type="button" role="tab" data-mode="class" aria-selected="false">班級</button>
-          </div>
-
-          <div class="collect-mode" data-panel="id">
-            <form id="id-form" class="paycheck-input" novalidate>
-              <input id="collect-id" type="text" inputmode="numeric" autocomplete="off" maxlength="10" placeholder="輸入學號" aria-label="學號" aria-describedby="collect-error">
-              <button class="button button-navy" type="submit">查詢</button>
-            </form>
-            <p class="field-error" id="collect-error" hidden>請輸入 5 到 10 位數字的學號。</p>
-          </div>
-
-          <div class="collect-mode" data-panel="scan" hidden>
-            <div id="scanner" class="collect-scanner"></div>
-            <p class="collect-hint" id="scan-hint">把學生證條碼對準框線，掃到後會自動顯示。</p>
-          </div>
-
-          <div class="collect-mode" data-panel="name" hidden>
-            <input id="collect-name" class="collect-text" type="search" autocomplete="off" placeholder="輸入姓名，例如 王小明" aria-label="姓名">
-          </div>
-
-          <div class="collect-mode" data-panel="class" hidden>
-            <select id="collect-class" class="collect-text" aria-label="班級"></select>
-            <label class="collect-toggle"><input type="checkbox" id="unpaid-only" checked> 只顯示未繳</label>
-          </div>
-
-          <div id="collect-result" class="paycheck-result" aria-live="polite"></div>
-          <ul id="collect-list" class="collect-people"></ul>
+      <div class="collect-body">
+        <section class="collect-mode" data-panel="id" aria-labelledby="mode-id-title">
+          <h2 class="collect-mode-title" id="mode-id-title">輸入學號</h2>
+          <form id="id-form" class="collect-search" novalidate>
+            <input id="collect-id" type="text" inputmode="numeric" autocomplete="off" maxlength="10" placeholder="例如 51106069" aria-labelledby="mode-id-title" aria-describedby="collect-error">
+            <button class="collect-search-go" type="submit">查詢</button>
+          </form>
+          <p class="collect-help" id="collect-error">打滿 8 碼會自動查詢。</p>
         </section>
 
-        <section class="collect-today" aria-labelledby="today-title">
+        <section class="collect-mode" data-panel="scan" aria-labelledby="mode-scan-title" hidden>
+          <h2 class="collect-mode-title" id="mode-scan-title">掃描學生證</h2>
+          <div id="scanner" class="collect-scanner"></div>
+          <p class="collect-help" id="scan-hint">把學生證條碼對準框線，掃到後會自動顯示。</p>
+        </section>
+
+        <section class="collect-mode" data-panel="name" aria-labelledby="mode-name-title" hidden>
+          <h2 class="collect-mode-title" id="mode-name-title">用姓名找</h2>
+          <div class="collect-search">
+            <input id="collect-name" type="search" autocomplete="off" placeholder="例如 王小明，打一個字也可以" aria-labelledby="mode-name-title">
+          </div>
+        </section>
+
+        <section class="collect-mode" data-panel="class" aria-labelledby="mode-class-title" hidden>
+          <h2 class="collect-mode-title" id="mode-class-title">班級名單</h2>
+          <div class="collect-search">
+            <select id="collect-class" aria-labelledby="mode-class-title"></select>
+          </div>
+          <label class="collect-toggle"><input type="checkbox" id="unpaid-only" checked> 只顯示未繳</label>
+        </section>
+
+        <div id="collect-result" class="collect-result" aria-live="polite"></div>
+        <ul id="collect-list" class="collect-people"></ul>
+
+        <section class="collect-today" id="today" aria-labelledby="today-title">
           <div class="collect-today-head">
             <h2 id="today-title">今日收款</h2>
-            <button type="button" class="text-button" id="today-refresh">重新整理</button>
+            <button type="button" class="collect-icon-button" id="today-refresh" aria-label="重新整理">
+              <svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg>
+            </button>
           </div>
           <div class="collect-stats" id="today-stats"></div>
           <ul class="collect-list" id="today-list"></ul>
         </section>
       </div>
+
+      <nav class="collect-tabs" role="tablist" aria-label="找人的方式">
+        <button type="button" role="tab" data-mode="id" aria-selected="true"><svg class="icon" aria-hidden="true"><use href="#i-hash"/></svg>學號</button>
+        <button type="button" role="tab" data-mode="scan" aria-selected="false"><svg class="icon" aria-hidden="true"><use href="#i-scan"/></svg>掃描</button>
+        <button type="button" role="tab" data-mode="name" aria-selected="false"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>姓名</button>
+        <button type="button" role="tab" data-mode="class" aria-selected="false"><svg class="icon" aria-hidden="true"><use href="#i-users"/></svg>班級</button>
+      </nav>
     </div>
   </main>
 
