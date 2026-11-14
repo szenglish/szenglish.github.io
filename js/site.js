@@ -7,7 +7,7 @@
     { label: "首頁", href: "index.html", page: "home" },
     { label: "應英月刊", href: "news.html", page: "news" },
     { label: "關於我們", href: "about.html", page: "about" },
-    { label: "會費查詢", href: "https://lezhaia.github.io/paycheck/", external: true },
+    { label: "會費查詢", href: "paycheck.html", page: "paycheck" },
     { label: "文件專區", href: "documents.html", page: "documents" },
     { label: "友站連結", href: "links.html", page: "links", footerOnly: true },
     { label: "聯絡我們", href: "contact.html", page: "contact" }

@@ -1399,6 +1399,276 @@ html:has(.sub-nav) { scroll-padding-top: 150px; }
 
 .form-success p { margin-top: 4px; color: var(--muted); }
 
+/* 會費查詢 */
+.contact-layout.paycheck-layout {
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  align-items: start;
+}
+
+@media (max-width: 1020px) {
+  .contact-layout.paycheck-layout { grid-template-columns: minmax(0, 1fr); }
+}
+
+.paycheck-input {
+  display: flex;
+  gap: 8px;
+}
+
+.paycheck-input input {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  min-height: 56px;
+  padding: 0 16px;
+  background: var(--white);
+  border: 1px solid var(--rule);
+  border-radius: 0;
+  color: var(--ink);
+  font: inherit;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: .08em;
+}
+
+.paycheck-input input::placeholder { color: #a9a49e; font-weight: 400; letter-spacing: 0; font-size: 17px; }
+
+.paycheck-input input:focus { outline: 3px solid var(--red); outline-offset: 1px; }
+
+.paycheck-input input[aria-invalid="true"] { border-color: var(--red-deep); }
+
+.paycheck .paycheck-input .button {
+  min-height: 56px;
+  margin-top: 0;
+  padding: 0 28px;
+  font-size: 17px;
+}
+
+.paycheck-result:empty { display: none; }
+
+.paycheck-result { margin-top: 24px; }
+
+.paycheck-card {
+  padding: 22px 24px;
+  background: var(--white);
+  border-left: 6px solid var(--navy);
+}
+
+.paycheck-card.is-paid { border-left-color: #2f7a4f; }
+.paycheck-card.is-unpaid { border-left-color: var(--red); }
+.paycheck-card.is-other { border-left-color: var(--gold); }
+.paycheck-card.is-empty { border-left-color: var(--rule); }
+
+.paycheck-card.is-loading {
+  min-height: 132px;
+  border-left-color: var(--rule);
+  background: linear-gradient(90deg, var(--white) 30%, #ece8e3 50%, var(--white) 70%) 0 0 / 300% 100%;
+  animation: paycheck-shimmer 1.2s linear infinite;
+}
+
+@keyframes paycheck-shimmer { to { background-position: -150% 0; } }
+
+.paycheck-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.paycheck-card-id {
+  color: var(--muted);
+  font-family: var(--display);
+  font-size: 15px;
+  letter-spacing: .08em;
+}
+
+.paycheck-card-name {
+  color: var(--navy);
+  font-size: 26px;
+  font-weight: 900;
+  line-height: 1.3;
+}
+
+.paycheck-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 16px;
+  background: var(--navy);
+  color: var(--white);
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.is-paid .paycheck-status { background: #2f7a4f; }
+.is-paid .paycheck-status::before { content: "✓"; }
+.is-unpaid .paycheck-status { background: var(--red); }
+.is-other .paycheck-status { background: var(--gold); color: var(--navy); }
+
+.paycheck-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 24px;
+  margin: 18px 0 0;
+  padding-top: 18px;
+  border-top: 1px solid var(--rule);
+}
+
+.paycheck-details:empty { display: none; }
+
+.paycheck-details dt { color: var(--muted); font-size: 14px; }
+
+.paycheck-details dd { margin: 2px 0 0; color: var(--ink); font-size: 17px; font-weight: 700; overflow-wrap: anywhere; }
+
+.paycheck-card-title { color: var(--navy); font-size: 19px; font-weight: 700; }
+
+.paycheck-card-text { margin-top: 8px; color: var(--muted); font-size: 15px; }
+
+.paycheck-card-head + .paycheck-card-text,
+.paycheck-details + .paycheck-card-text { margin-top: 16px; }
+
+.paycheck-card + .paycheck-card { margin-top: 12px; }
+
+/* 幹部收費 */
+.collect-banner .page-banner-inner { padding-top: 28px; padding-bottom: 24px; }
+
+.collect-banner .banner-zh { margin-top: 2px; font-size: clamp(26px, 4vw, 36px); }
+
+.collect {
+  max-width: calc(720px + 2 * var(--gutter));
+  padding-top: clamp(20px, 4vw, 40px);
+  padding-bottom: clamp(48px, 7vw, 80px);
+}
+
+.collect-signin .signin-button { min-height: 44px; margin-top: 20px; }
+
+.collect-officer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  color: var(--muted);
+}
+
+.collect-officer strong { color: var(--navy); }
+
+.text-button {
+  min-height: 40px;
+  padding: 0 4px;
+  background: none;
+  border: 0;
+  color: var(--red);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.text-button:hover { text-decoration: underline; }
+
+.text-button:disabled { color: var(--muted); cursor: wait; }
+
+.collect-panel .field:first-child { margin-top: 0; }
+
+.collect-pay, .collect-next {
+  width: 100%;
+  justify-content: center;
+  min-height: 56px;
+  margin-top: 20px;
+  border: 0;
+  font-family: inherit;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.collect-pay:disabled { opacity: .6; cursor: wait; }
+
+.collect-new .field input {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 14px;
+  background: var(--white);
+  border: 1px solid var(--rule);
+  border-radius: 0;
+  color: var(--ink);
+  font: inherit;
+  font-size: 17px;
+}
+
+.collect-new .field input:focus { outline: 3px solid var(--red); outline-offset: 1px; }
+
+.collect-new .field { margin-top: 16px; }
+
+.collect-receipt {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 14px 16px;
+  background: #eaf3ed;
+  color: #1f5a37;
+}
+
+.collect-receipt strong {
+  font-family: var(--display);
+  font-size: 34px;
+  font-weight: 400;
+  letter-spacing: .04em;
+}
+
+.collect-today { margin-top: clamp(32px, 5vw, 48px); }
+
+.collect-today-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.collect-today h2 { color: var(--navy); font-size: 22px; font-weight: 700; }
+
+.collect-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.collect-stat { padding: 14px 16px; background: var(--mist); }
+
+.collect-stat-label { color: var(--muted); font-size: 14px; }
+
+.collect-stat-value { color: var(--navy); font-size: 24px; font-weight: 900; }
+
+.collect-stat-note { color: var(--muted); font-size: 15px; }
+
+.collect-list { margin: 12px 0 0; padding: 0; list-style: none; }
+
+.collect-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--rule);
+}
+
+.collect-list-time { flex: none; width: 44px; color: var(--muted); font-size: 14px; }
+
+.collect-list-main { flex: 1; min-width: 0; }
+
+.collect-list-main p:first-child { color: var(--ink); font-weight: 700; overflow-wrap: anywhere; }
+
+.collect-list-meta { color: var(--muted); font-size: 14px; }
+
+.collect-list li.is-void .collect-list-main p { color: var(--muted); text-decoration: line-through; }
+
+.collect-list li.is-void .collect-list-meta { text-decoration: none; }
+
+.collect-list-empty { color: var(--muted); }
+
 /* 文章 */
 /* 文字、封面、影片、照片組都對齊同一個寬度（內容區 860px）。 */
 .article {
@@ -2392,7 +2662,7 @@ html:has(.sub-nav) { scroll-padding-top: 150px; }
 @media (prefers-reduced-motion: reduce) {
   .lead-image img, .card-image img, .row-image img, .mosaic img, .event, .link-card, .site-header { transition: none; }
   .lead:hover img, .card:hover img, .row:hover img, .mosaic li:hover img, a.event:hover, .link-card:hover { transform: none; }
-  .skeleton { animation: none; }
+  .skeleton, .paycheck-card.is-loading { animation: none; }
   .hero-slogan {
     display: flex;
     flex-wrap: wrap;

@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>會費查詢｜應用英語科學會</title>
+  <link rel="icon" href="favicon.ico" sizes="48x48">
+  <link rel="icon" href="assets/icons/icon-192.png" type="image/png" sizes="192x192">
+  <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+  <meta name="description" content="輸入學號，查詢應用英語科學會會費的繳費狀態與收據編號。">
+  <meta property="og:site_name" content="樹人醫專應用英語科學會">
+  <meta property="og:locale" content="zh_TW">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="會費查詢｜應用英語科學會">
+  <meta property="og:description" content="輸入學號，查詢應用英語科學會會費的繳費狀態與收據編號。">
+  <meta property="og:url" content="https://szenglish.github.io/paycheck.html">
+  <meta property="og:image" content="https://szenglish.github.io/assets/images/share.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Noto+Sans+TC:wght@400;700;900&display=swap">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="paycheck">
+  <main>
+    <div class="page-banner">
+      <div class="wrap page-banner-inner">
+        <h1 lang="en">Membership</h1>
+        <p class="banner-zh">會費查詢</p>
+        <p>輸入學號，確認本學期會費是否已經登記</p>
+      </div>
+    </div>
+    <div class="wrap section contact-layout paycheck-layout">
+      <section class="feedback paycheck" aria-labelledby="paycheck-title">
+        <p class="eyebrow">Check status</p>
+        <h2 id="paycheck-title">查詢繳費狀態</h2>
+        <form id="paycheck-form" novalidate>
+          <div class="field">
+            <label for="student-id">學號</label>
+            <div class="paycheck-input">
+              <input id="student-id" name="id" type="text" inputmode="numeric" autocomplete="off" maxlength="10" placeholder="例如 51106069" aria-describedby="error-id">
+              <button class="button button-navy" type="submit">查詢</button>
+            </div>
+            <p class="field-error" id="error-id" hidden>請輸入 5 到 10 位數字的學號。</p>
+          </div>
+        </form>
+        <div id="paycheck-result" class="paycheck-result" aria-live="polite"></div>
+      </section>
+      <div class="contact-list">
+        <section class="contact-item">
+          <h2>多久可以查到？</h2>
+          <p>幹部收款時用手機登記，登記完馬上就查得到。</p>
+        </section>
+        <section class="contact-item">
+          <h2>姓名為什麼只顯示部分？</h2>
+          <p>為了保護個人資料，姓名中間的字會隱藏，確認是本人即可。</p>
+        </section>
+        <section class="contact-item">
+          <h2>資料有誤或查不到</h2>
+          <p>請帶著收據到科學會辦公室（A717），或來信告知學號與姓名。</p>
+          <a href="mailto:szae.official@gmail.com">szae.official@gmail.com</a>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="js/site.js"></script>
+  <script src="js/pages.js"></script>
+</body>
+</html>

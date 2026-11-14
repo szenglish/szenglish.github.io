@@ -639,6 +639,95 @@
     });
   }
 
+  // 會費查詢：送學號到 Apps Script，只拿回這一位的結果。
+  function renderPaycheck() {
+    var form = document.getElementById("paycheck-form");
+    var input = document.getElementById("student-id");
+    var error = document.getElementById("error-id");
+    var submit = form.querySelector("button[type=submit]");
+    var target = document.getElementById("paycheck-result");
+
+    function detail(label, value) {
+      return value ? el("div", {}, [el("dt", { text: label }), el("dd", { text: value })]) : null;
+    }
+
+    function notice(title, text) {
+      return el("div", { class: "paycheck-card is-empty" }, [
+        el("p", { class: "paycheck-card-title", text: title }),
+        el("p", { class: "paycheck-card-text", text: text })
+      ]);
+    }
+
+    function resultCard(id, result) {
+      if (!result.found) {
+        return notice("找不到學號 " + id + " 的資料", "請確認學號是否正確。如果已經繳費，請聯絡科學會幹部協助確認。");
+      }
+      var term = result.term ? result.term + " 學期" : "本學期";
+      return el("div", { class: "paycheck-card " + (result.paid ? "is-paid" : "is-unpaid") }, [
+        el("div", { class: "paycheck-card-head" }, [
+          el("div", {}, [
+            el("p", { class: "paycheck-card-id", text: id }),
+            el("p", { class: "paycheck-card-name", text: result.name || "（未登記姓名）" })
+          ]),
+          el("span", { class: "paycheck-status", text: result.paid ? "已繳費" : "未繳費" })
+        ]),
+        el("dl", { class: "paycheck-details" }, [
+          detail("學期", term),
+          detail("收據編號", result.receipt),
+          detail("繳費日期", result.paidAt),
+          detail("經手人", result.handler)
+        ]),
+        result.paid ? null : el("p", { class: "paycheck-card-text", text: term + "的會費還沒有登記。請攜帶會費到科學會辦公室（A717）繳交，或洽詢收費的幹部。" })
+      ]);
+    }
+
+    input.addEventListener("input", function () {
+      // 全形數字轉半形，並去掉非數字。
+      var clean = input.value.replace(/[０-９]/g, function (c) {
+        return String.fromCharCode(c.charCodeAt(0) - 0xFEE0);
+      }).replace(/\D/g, "");
+      if (clean !== input.value) input.value = clean;
+      error.hidden = true;
+      input.removeAttribute("aria-invalid");
+    });
+
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      var id = input.value.trim();
+      if (!/^\d{5,10}$/.test(id)) {
+        error.hidden = false;
+        input.setAttribute("aria-invalid", "true");
+        replace(target, []);
+        input.focus();
+        return;
+      }
+      if (!S.config.paycheckUrl) {
+        replace(target, [notice("尚未連接試算表", "試作版還沒有設定 paycheckUrl，暫時無法查詢。")]);
+        return;
+      }
+
+      submit.disabled = true;
+      submit.textContent = "查詢中…";
+      target.setAttribute("aria-busy", "true");
+      replace(target, [el("div", { class: "paycheck-card is-loading", "aria-hidden": "true" })]);
+      var base = S.config.paycheckUrl;
+      var url = base + (base.indexOf("?") < 0 ? "?" : "&") + "action=paycheck&id=" + encodeURIComponent(id);
+      fetch(url).then(function (res) {
+        return res.json();
+      }).then(function (result) {
+        if (!result.ok) throw new Error(result.error || "查詢失敗");
+        replace(target, [resultCard(id, result)]);
+      }).catch(function (err) {
+        console.error("會費查詢失敗", err);
+        replace(target, [notice("查詢時發生錯誤", "請稍後再試，或寄信到 " + S.config.email + "。")]);
+      }).then(function () {
+        submit.disabled = false;
+        submit.textContent = "查詢";
+        target.removeAttribute("aria-busy");
+      });
+    });
+  }
+
   function fileType(name) {
     var match = String(name).match(/\.([a-z0-9]+)$/i);
     return match ? match[1].toUpperCase() : "檔案";
@@ -837,6 +926,7 @@
   if (page === "documents") renderDocuments();
   if (page === "evaluation") renderEvaluation();
   if (page === "contact") renderFeedback();
+  if (page === "paycheck") renderPaycheck();
   if (page === "news") renderNews();
   if (page === "article") renderArticle();
 })();

@@ -1,6 +1,9 @@
-// 網站設定。部署意見表單的 Apps Script 後，把網址貼到 feedbackUrl。
+// 網站設定。部署 Apps Script 後，把網址貼到 feedbackUrl 和 paycheckUrl（兩個通常是同一個網址）。
 window.SZAE_CONFIG = {
   feedbackUrl: "",
+  paycheckUrl: "",
+  // 幹部收費頁的 Google 登入用戶端 ID，和 Code.gs 的 GOOGLE_CLIENT_ID 相同。
+  googleClientId: "",
   term: "第十五屆",
   motto: "團結、責任、勇敢、熱忱、創新",
   email: "szae.official@gmail.com",
