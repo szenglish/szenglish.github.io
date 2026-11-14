@@ -1436,7 +1436,7 @@ html:has(.sub-nav) { scroll-padding-top: 150px; }
 
 .paycheck-input input[aria-invalid="true"] { border-color: var(--red-deep); }
 
-.paycheck .paycheck-input .button {
+.feedback .paycheck-input .button {
   min-height: 56px;
   margin-top: 0;
   padding: 0 28px;
@@ -1585,6 +1585,8 @@ html:has(.sub-nav) { scroll-padding-top: 150px; }
 
 .collect-pay:disabled { opacity: .6; cursor: wait; }
 
+.collect-pay + .form-message:empty { display: none; }
+
 .collect-new .field input {
   display: block;
   width: 100%;
@@ -1599,6 +1601,8 @@ html:has(.sub-nav) { scroll-padding-top: 150px; }
 }
 
 .collect-new .field input:focus { outline: 3px solid var(--red); outline-offset: 1px; }
+
+.collect-new { margin-top: 8px; }
 
 .collect-new .field { margin-top: 16px; }
 
