@@ -51,50 +51,40 @@
       </div>
       <section class="feedback" id="feedback">
         <p class="eyebrow">Feedback</p>
-        <h2>意見投遞箱</h2>
-        <p class="feedback-intro">發現網站的問題，或有更好的建議嗎？歡迎告訴我們。填寫不需要登入，也不會留下姓名。</p>
+        <h2>意見反映</h2>
+        <p class="feedback-intro">對科學會或網站有任何意見、問題或建議，都歡迎告訴我們，我們會盡快以 Email 回覆。</p>
         <form id="feedback-form" novalidate>
-          <fieldset>
-            <legend>您所就讀的年級 <span aria-hidden="true">*</span></legend>
-            <div class="choices">
-              <label><input type="radio" name="grade" value="一年級"><span>一年級</span></label>
-              <label><input type="radio" name="grade" value="二年級"><span>二年級</span></label>
-              <label><input type="radio" name="grade" value="三年級"><span>三年級</span></label>
-              <label><input type="radio" name="grade" value="四年級"><span>四年級</span></label>
-              <label><input type="radio" name="grade" value="五年級"><span>五年級</span></label>
-              <label><input type="radio" name="grade" value="已畢業"><span>已畢業</span></label>
-            </div>
-            <p class="field-error" id="error-grade" hidden>請選擇年級。</p>
-          </fieldset>
-          <fieldset>
-            <legend>您對本站的使用心得 <span aria-hidden="true">*</span></legend>
-            <div class="choices">
-              <label><input type="radio" name="rating" value="非常差勁"><span>非常差勁</span></label>
-              <label><input type="radio" name="rating" value="有待加強"><span>有待加強</span></label>
-              <label><input type="radio" name="rating" value="普通"><span>普通</span></label>
-              <label><input type="radio" name="rating" value="非常好"><span>非常好</span></label>
-              <label><input type="radio" name="rating" value="極佳"><span>極佳</span></label>
-            </div>
-            <p class="field-error" id="error-rating" hidden>請選擇使用心得。</p>
-          </fieldset>
-          <fieldset>
-            <legend>您是否在本站順利完成想做的事？ <span aria-hidden="true">*</span></legend>
-            <div class="choices">
-              <label><input type="radio" name="completed" value="是"><span>是</span></label>
-              <label><input type="radio" name="completed" value="否"><span>否</span></label>
-            </div>
-            <p class="field-error" id="error-completed" hidden>請選擇是或否。</p>
-          </fieldset>
           <div class="field">
-            <label for="suggestion">對於本會網站，我有以下更好的建議 <span aria-hidden="true">*</span></label>
-            <textarea id="suggestion" name="suggestion" rows="5" maxlength="2000" required></textarea>
-            <p class="field-error" id="error-suggestion" hidden>請填寫你的建議。</p>
+            <label for="fb-name">姓名／科系 <span aria-hidden="true">*</span></label>
+            <input id="fb-name" name="name" type="text" maxlength="50" autocomplete="name" placeholder="例如 王小明／應用英語科" required>
+            <p class="field-error" id="error-name" hidden>請填寫姓名／科系。</p>
           </div>
+          <div class="field">
+            <label for="fb-email">回覆 Email <span aria-hidden="true">*</span></label>
+            <input id="fb-email" name="email" type="email" maxlength="100" autocomplete="email" inputmode="email" placeholder="example@gmail.com" required>
+            <p class="field-error" id="error-email" hidden>請填寫正確的 Email。</p>
+          </div>
+          <div class="field">
+            <label for="suggestion">您的意見 <span aria-hidden="true">*</span></label>
+            <textarea id="suggestion" name="suggestion" rows="6" maxlength="2000" required></textarea>
+            <p class="field-error" id="error-suggestion" hidden>請填寫您的意見。</p>
+          </div>
+          <fieldset>
+            <legend>是否指定部門回覆</legend>
+            <div class="choices">
+              <label><input type="radio" name="dept" value="不指定" checked><span>不指定</span></label>
+              <label><input type="radio" name="dept" value="正副會長"><span>正副會長</span></label>
+              <label><input type="radio" name="dept" value="秘書處"><span>秘書處</span></label>
+              <label><input type="radio" name="dept" value="財務部"><span>財務部</span></label>
+              <label><input type="radio" name="dept" value="企劃部"><span>企劃部</span></label>
+              <label><input type="radio" name="dept" value="廣宣部"><span>廣宣部</span></label>
+            </div>
+          </fieldset>
           <div class="field-trap" aria-hidden="true">
             <label for="website">網站（請留空）</label>
             <input id="website" name="website" type="text" tabindex="-1" autocomplete="off">
           </div>
-          <button class="button button-navy" type="submit">送出意見</button>
+          <button class="button button-navy" type="submit">送出</button>
           <p class="form-message" id="feedback-message" role="status"></p>
         </form>
       </section>

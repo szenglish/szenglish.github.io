@@ -1,4 +1,4 @@
-// 網站的 Google Apps Script：意見投遞箱、會費查詢、幹部收費。
+// 網站的 Google Apps Script：意見反映、會費查詢、幹部收費、線上投票、器材借用。
 // 請從試算表的「擴充功能 > Apps Script」貼上這份程式，設定方式見 README.md。
 
 // 幹部用 Google 帳號登入收費頁時用的 OAuth 用戶端 ID，和 config.js 的 googleClientId 相同。
@@ -9,14 +9,27 @@ var SHEETS = {
   roster: "名冊",
   payments: "收款紀錄",
   settings: "設定",
-  officers: "幹部"
+  officers: "幹部",
+  voteEvents: "投票活動",
+  voteQuestions: "投票題目",
+  voteNamed: "投票紀錄",
+  voteAnon: "投票結果",
+  equipment: "器材",
+  borrows: "借用申請"
 };
 var HEADERS = {
-  feedback: ["時間", "年級", "使用心得", "是否完成預期事項", "建議"],
+  feedback: ["時間", "姓名／科系", "回覆 Email", "意見", "指定部門", "處理狀態"],
   roster: ["學號", "姓名", "班級", "入會日期", "備註"],
   payments: ["時間", "學年", "學號", "姓名", "金額", "收據編號", "經手人", "經手人信箱", "狀態", "作廢原因"],
   settings: ["項目", "內容"],
-  officers: ["Gmail", "姓名", "職稱"]
+  officers: ["Gmail", "姓名", "職稱"],
+  voteEvents: ["活動代號", "名稱", "說明", "開始時間", "結束時間", "公開結果"],
+  voteQuestions: ["活動代號", "題號", "類型", "標題", "原條文", "修訂條文", "說明", "選項"],
+  voteNamed: ["時間", "活動代號", "學號", "姓名", "信箱", "答案"],
+  voteAnon: ["活動代號", "題號", "題目", "選擇"],
+  equipment: ["器材名稱", "數量", "單位", "備註", "可借用"],
+  borrows: ["申請編號", "申請時間", "學號", "借用人", "信箱", "借用單位", "聯絡電話", "開始日期", "結束日期", "借用物品",
+    "用途說明", "使用地點", "狀態", "器材長審核", "會長審核", "退回原因", "借出紀錄", "歸還驗收", "歸還備註"]
 };
 var VOID = "作廢";
 var ID_PATTERN = /^\d{5,10}$/;
@@ -47,6 +60,9 @@ function doGet(e) {
   var params = (e && e.parameter) || {};
   try {
     if (params.action === "paycheck") return json(publicLookup(params.id));
+    if (params.action === "votes") return json(publicVoteList());
+    if (params.action === "vote") return json(publicVote(params.event));
+    if (params.action === "equipment") return json(publicEquipment(params.start, params.end));
     throw new Error("不支援的操作");
   } catch (err) {
     return json({ ok: false, error: err.message });
@@ -60,6 +76,8 @@ function doPost(e) {
   } catch (err) {
     return json({ ok: false, error: "資料格式不正確" });
   }
+  if (input.action === "voteStatus" || input.action === "voteSubmit") return json(handleVoter(input));
+  if (/^borrow/.test(input.action || "")) return json(handleBorrow(input));
   if (input.action) return json(handleOfficer(input));
   return json(handleFeedback(input));
 }
@@ -71,32 +89,33 @@ function json(data) {
 // ── 意見投遞箱 ───────────────────────────────────────────
 
 var FEEDBACK_MAX_LENGTH = 2000;
-var FEEDBACK_OPTIONS = {
-  grade: ["一年級", "二年級", "三年級", "四年級", "五年級", "已畢業"],
-  rating: ["非常差勁", "有待加強", "普通", "非常好", "極佳"],
-  completed: ["是", "否"]
-};
+var FEEDBACK_DEPTS = ["不指定", "正副會長", "秘書處", "財務部", "企劃部", "廣宣部"];
 
 function handleFeedback(input) {
   try {
     var row = feedbackRow(input);
-    if (row) withLock(function () { getSheet("feedback", true).appendRow(row); });
+    if (row) withLock(function () { getSheet("feedback", true).appendRow(rowFor("feedback", row)); });
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err.message };
   }
 }
 
-// 回傳要寫入試算表的一列；機器人填了隱藏欄位時回傳 null，並假裝成功。
+// 回傳要寫入試算表的欄位；機器人填了隱藏欄位時回傳 null，並假裝成功。
 function feedbackRow(input) {
   if (input.website) return null;
-  Object.keys(FEEDBACK_OPTIONS).forEach(function (key) {
-    if (FEEDBACK_OPTIONS[key].indexOf(input[key]) < 0) throw new Error("欄位內容不正確：" + key);
-  });
-  var suggestion = String(input.suggestion || "").trim();
-  if (!suggestion) throw new Error("請填寫建議內容");
-  if (suggestion.length > FEEDBACK_MAX_LENGTH) throw new Error("建議內容太長");
-  return [new Date(), input.grade, input.rating, input.completed, safeText(suggestion)];
+  var name = text(input.name);
+  var email = text(input.email);
+  var suggestion = text(input.suggestion);
+  var dept = FEEDBACK_DEPTS.indexOf(text(input.dept)) >= 0 ? text(input.dept) : "不指定";
+  if (!name || name.length > 50) throw new Error("請填寫姓名／科系");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 100) throw new Error("請填寫正確的 Email");
+  if (!suggestion) throw new Error("請填寫意見內容");
+  if (suggestion.length > FEEDBACK_MAX_LENGTH) throw new Error("意見內容太長");
+  return {
+    "時間": new Date(), "姓名／科系": safeText(name), "回覆 Email": safeText(email),
+    "意見": safeText(suggestion), "指定部門": dept, "處理狀態": "未回覆"
+  };
 }
 
 // ── 會費查詢（公開，不用登入） ───────────────────────────
@@ -188,8 +207,8 @@ function authError(message, denied) {
   return err;
 }
 
-// 向 Google 確認登入憑證，再比對「幹部」分頁。驗證結果快取 10 分鐘。
-function verifyOfficer(token) {
+// 向 Google 確認登入憑證，回傳信箱。驗證結果快取 10 分鐘。
+function verifyGoogleEmail(token) {
   if (!GOOGLE_CLIENT_ID) throw new Error("Apps Script 還沒有設定 GOOGLE_CLIENT_ID");
   if (!token) throw authError("請先登入");
   var cache = CacheService.getScriptCache();
@@ -206,6 +225,12 @@ function verifyOfficer(token) {
     email = String(info.email).toLowerCase();
     cache.put(key, email, Math.min(600, secondsLeft));
   }
+  return email;
+}
+
+// 確認登入的帳號在「幹部」分頁。
+function verifyOfficer(token) {
+  var email = verifyGoogleEmail(token);
   var match = readTable("officers").filter(function (r) {
     return text(r["Gmail"]).toLowerCase() === email;
   })[0];
@@ -339,6 +364,488 @@ function nextReceipt(year, payments) {
   var seq = String(max + 1);
   while (seq.length < 3) seq = "0" + seq;
   return prefix + seq;
+}
+
+// ── 線上投票 ─────────────────────────────────────────────
+// 投票活動和題目都在試算表設定，不用改程式。
+// 學生用學校 Google 帳號（s學號@student.szmc.edu.tw）登入，學號直接從信箱取得。
+// 每張票寫兩份：「投票紀錄」記名，供選委會查核；「投票結果」不含學號，可以公開。
+
+var VOTE_TYPES = { agree: "同意反對", choice: "單選" };
+var AGREE_OPTIONS = ["同意", "反對"];
+var SCHOOL_EMAIL = /^s(\d{8})@student\.szmc\.edu\.tw$/;
+
+// 公開：列出所有投票活動。
+function publicVoteList() {
+  var now = Date.now();
+  var events = readTable("voteEvents").map(function (r) { return eventOf(r, now); })
+    .filter(function (e) { return e.id; })
+    .sort(function (a, b) { return b.start - a.start; });
+  return { ok: true, events: events.map(publicEvent) };
+}
+
+// 公開：單一活動的題目；活動結束且設定公開時，附上統計結果。
+function publicVote(eventId) {
+  var event = findEvent(eventId);
+  var questions = questionsOf(event.id);
+  var data = publicEvent(event);
+  data.questions = questions.map(function (q) {
+    return { no: q.no, type: q.type, title: q.title, original: q.original, revised: q.revised, note: q.note, options: q.options };
+  });
+  if (event.status === "closed" && event.showResults) data.results = tally(event.id, questions);
+  return { ok: true, event: data };
+}
+
+function handleVoter(input) {
+  try {
+    var voter = verifyStudent(input.token);
+    var event = findEvent(input.event);
+    if (input.action === "voteStatus") {
+      return {
+        ok: true, id: voter.id, name: voter.name, eligible: voter.eligible,
+        voted: hasVoted(event.id, voter.id), status: event.status
+      };
+    }
+    if (input.action === "voteSubmit") return submitVote(event, voter, input.answers || {});
+    throw new Error("不支援的操作");
+  } catch (err) {
+    return { ok: false, error: err.message, auth: Boolean(err.auth), denied: Boolean(err.denied) };
+  }
+}
+
+function submitVote(event, voter, answers) {
+  if (event.status !== "open") throw new Error(event.status === "upcoming" ? "投票還沒開始" : "投票已經結束");
+  if (!voter.eligible) throw new Error("這個帳號沒有投票資格");
+  var questions = questionsOf(event.id);
+  var picked = questions.map(function (q) {
+    var answer = text(answers[q.no]);
+    if (q.options.indexOf(answer) < 0) throw new Error("第 " + q.no + " 題還沒有選擇");
+    return { q: q, answer: answer };
+  });
+  return withLock(function () {
+    if (hasVoted(event.id, voter.id)) return { ok: false, error: "你已經投過票了，每個人只能投一次", voted: true };
+    getSheet("voteNamed", true).appendRow(rowFor("voteNamed", {
+      "時間": new Date(), "活動代號": event.id, "學號": "'" + voter.id, "姓名": voter.name, "信箱": voter.email,
+      "答案": picked.map(function (p) { return p.q.no + ". " + p.answer; }).join("\n")
+    }));
+    var anon = getSheet("voteAnon", true);
+    var header = headerOf(anon);
+    var rows = picked.map(function (p) {
+      var values = { "活動代號": event.id, "題號": p.q.no, "題目": p.q.title, "選擇": p.answer };
+      return header.map(function (h) { return values.hasOwnProperty(h) ? values[h] : ""; });
+    });
+    anon.getRange(anon.getLastRow() + 1, 1, rows.length, header.length).setValues(rows);
+    // 依活動、題號排序，同一題的票混在一起，看不出投票順序。
+    if (anon.getLastRow() > 2) {
+      anon.getRange(2, 1, anon.getLastRow() - 1, header.length).sort([
+        { column: header.indexOf("活動代號") + 1, ascending: true },
+        { column: header.indexOf("題號") + 1, ascending: true },
+        { column: header.indexOf("選擇") + 1, ascending: true }
+      ]);
+    }
+    return { ok: true };
+  });
+}
+
+// 驗證學校帳號，判斷是不是還沒畢業的應英科學生。
+function verifyStudent(token) {
+  var email = verifyGoogleEmail(token);
+  var match = SCHOOL_EMAIL.exec(email);
+  if (!match) throw authError("請用學校信箱（s學號@student.szmc.edu.tw）登入，" + email + " 不能投票", true);
+  var id = match[1];
+  var member = findMember(id);
+  var year = readSettings().year;
+  var applied = /^5\d{2}06\d{3}$/.test(id) || Boolean(member);
+  return {
+    id: id,
+    email: email,
+    name: member ? member.name : "",
+    eligible: applied && !isGraduated(id, member && member.joined, year)
+  };
+}
+
+function hasVoted(eventId, id) {
+  return readTable("voteNamed").some(function (r) {
+    return text(r["活動代號"]) === eventId && idOf(r["學號"]) === id;
+  });
+}
+
+function tally(eventId, questions) {
+  var counts = {};
+  questions.forEach(function (q) {
+    counts[q.no] = {};
+    q.options.forEach(function (o) { counts[q.no][o] = 0; });
+  });
+  var ballots = 0;
+  readTable("voteAnon").forEach(function (r) {
+    if (text(r["活動代號"]) !== eventId) return;
+    var no = text(r["題號"]);
+    var choice = text(r["選擇"]);
+    if (counts[no] && counts[no].hasOwnProperty(choice)) counts[no][choice] += 1;
+  });
+  readTable("voteNamed").forEach(function (r) { if (text(r["活動代號"]) === eventId) ballots += 1; });
+  return { ballots: ballots, counts: counts };
+}
+
+function findEvent(rawId) {
+  var id = text(rawId);
+  var now = Date.now();
+  var event = readTable("voteEvents").map(function (r) { return eventOf(r, now); })
+    .filter(function (e) { return e.id && e.id === id; })[0];
+  if (!event) throw new Error("找不到這個投票活動");
+  return event;
+}
+
+function eventOf(r, now) {
+  var start = toTime(r["開始時間"]);
+  var end = toTime(r["結束時間"]);
+  return {
+    id: text(r["活動代號"]),
+    name: text(r["名稱"]),
+    description: text(r["說明"]),
+    start: start,
+    end: end,
+    status: !start || now < start ? "upcoming" : (end && now >= end ? "closed" : "open"),
+    showResults: text(r["公開結果"]) === "是"
+  };
+}
+
+function publicEvent(e) {
+  return {
+    id: e.id, name: e.name, description: e.description, status: e.status, showResults: e.showResults,
+    start: e.start ? formatDate(new Date(e.start), "yyyy/MM/dd HH:mm") : "",
+    end: e.end ? formatDate(new Date(e.end), "yyyy/MM/dd HH:mm") : ""
+  };
+}
+
+function questionsOf(eventId) {
+  return readTable("voteQuestions").filter(function (r) {
+    return text(r["活動代號"]) === eventId && text(r["題號"]);
+  }).map(function (r) {
+    var type = text(r["類型"]) === VOTE_TYPES.choice ? "choice" : "agree";
+    var options = type === "choice"
+      ? text(r["選項"]).split(/[\n、,，]/).map(text).filter(Boolean)
+      : AGREE_OPTIONS;
+    return {
+      no: text(r["題號"]), type: type, title: text(r["標題"]),
+      original: text(r["原條文"]), revised: text(r["修訂條文"]), note: text(r["說明"]), options: options
+    };
+  }).sort(function (a, b) { return Number(a.no) - Number(b.no); });
+}
+
+function toTime(value) {
+  if (value instanceof Date) return value.getTime();
+  var t = Date.parse(text(value).replace(/\//g, "-").replace(" ", "T"));
+  return isNaN(t) ? 0 : t;
+}
+
+// ── 器材借用 ─────────────────────────────────────────────
+// 學生用學校帳號申請；器材長審核 → 會長審核 → 借出 → 歸還。
+// 器材長、會長依「幹部」分頁的職稱判斷，審核結果會寄信通知申請人。
+
+var BORROW = {
+  equipApprove: "待器材長審核",
+  presidentApprove: "待會長審核",
+  approved: "已核准",
+  lent: "已借出",
+  returned: "已歸還",
+  rejected: "已退回",
+  cancelled: "已取消"
+};
+var BORROW_ACTIVE = [BORROW.equipApprove, BORROW.presidentApprove, BORROW.approved, BORROW.lent];
+var BORROW_NOTICE_DAYS = 3;
+
+// 公開：器材清單；帶日期時，附上那段期間還能借的數量。
+function publicEquipment(start, end) {
+  var range = start && end ? dateRange(start, end) : null;
+  var items = equipmentList().map(function (item) {
+    var data = { name: item.name, total: item.total, unit: item.unit, note: item.note };
+    if (range) data.available = item.total - bookedQuantity(item.name, range.start, range.end, "");
+    return data;
+  });
+  return { ok: true, items: items, noticeDays: BORROW_NOTICE_DAYS };
+}
+
+function handleBorrow(input) {
+  try {
+    var email = verifyGoogleEmail(input.token);
+    var who = borrowWho(email);
+    var action = input.action;
+    if (action === "borrowWho") return borrowWhoResult(who);
+    if (action === "borrowMine") return { ok: true, items: borrowRequests().filter(function (r) { return r.email === email; }).reverse().map(publicRequest) };
+    if (action === "borrowSubmit") return borrowSubmit(who, input);
+    if (action === "borrowCancel") return borrowCancel(who, input);
+    if (action === "borrowList") {
+      if (!who.officer) throw authError("只有幹部可以查看審核清單", true);
+      return { ok: true, roles: who.roles, items: borrowRequests().reverse().slice(0, 200).map(publicRequest) };
+    }
+    if (action === "borrowAct") return borrowAct(who, input);
+    throw new Error("不支援的操作");
+  } catch (err) {
+    return { ok: false, error: err.message, auth: Boolean(err.auth), denied: Boolean(err.denied) };
+  }
+}
+
+// 判斷登入的人是學生、幹部，或兩者都是。
+function borrowWho(email) {
+  var who = { email: email, student: null, officer: null, roles: { equip: false, president: false } };
+  var school = SCHOOL_EMAIL.exec(email);
+  if (school) {
+    var member = findMember(school[1]);
+    who.student = { id: school[1], name: member ? member.name : "" };
+  }
+  var officer = readTable("officers").filter(function (r) { return text(r["Gmail"]).toLowerCase() === email; })[0];
+  if (officer) {
+    var title = text(officer["職稱"]);
+    who.officer = { name: text(officer["姓名"]) || email.split("@")[0], title: title };
+    who.roles.equip = title.indexOf("器材") >= 0;
+    who.roles.president = title === "會長";
+  }
+  if (!who.student && !who.officer) throw authError("請用學校信箱（s學號@student.szmc.edu.tw）登入申請借用", true);
+  return who;
+}
+
+function borrowWhoResult(who) {
+  return {
+    ok: true,
+    email: who.email,
+    student: who.student,
+    officer: who.officer ? { name: who.officer.name, title: who.officer.title } : null,
+    roles: who.roles
+  };
+}
+
+function borrowSubmit(who, input) {
+  if (!who.student) throw new Error("請用學校信箱登入申請借用");
+  var unit = text(input.unit).slice(0, 50);
+  var phone = text(input.phone).slice(0, 30);
+  var purpose = text(input.purpose).slice(0, 500);
+  var place = text(input.place).slice(0, 100);
+  var name = text(input.name).slice(0, 30) || who.student.name;
+  if (!unit) throw new Error("請填寫借用單位");
+  if (!name) throw new Error("請填寫借用人姓名");
+  if (!/^[0-9+\-\s()#]{8,}$/.test(phone)) throw new Error("請填寫正確的聯絡電話");
+  if (!purpose) throw new Error("請填寫用途說明");
+  if (!place) throw new Error("請填寫使用地點");
+  var range = dateRange(input.start, input.end);
+  var earliest = addDays(today(), BORROW_NOTICE_DAYS);
+  if (range.start < earliest) throw new Error("請在借用日前 " + BORROW_NOTICE_DAYS + " 天提出申請（最早可借 " + earliest + "）");
+
+  var catalog = {};
+  equipmentList().forEach(function (item) { catalog[item.name] = item; });
+  var items = (input.items || []).map(function (i) {
+    return { name: text(i.name), qty: Math.floor(Number(i.qty)) };
+  }).filter(function (i) { return i.qty > 0; });
+  if (!items.length) throw new Error("請選擇要借用的器材");
+
+  return withLock(function () {
+    items.forEach(function (i) {
+      var item = catalog[i.name];
+      if (!item) throw new Error("器材清單裡沒有「" + i.name + "」");
+      var left = item.total - bookedQuantity(i.name, range.start, range.end, "");
+      if (i.qty > left) throw new Error("「" + i.name + "」在這段期間只剩 " + Math.max(left, 0) + " " + item.unit);
+    });
+    var no = nextBorrowNo();
+    getSheet("borrows", true).appendRow(rowFor("borrows", {
+      "申請編號": no, "申請時間": new Date(), "學號": "'" + who.student.id, "借用人": safeText(name),
+      "信箱": who.email, "借用單位": safeText(unit), "聯絡電話": "'" + phone,
+      "開始日期": range.start, "結束日期": range.end,
+      "借用物品": items.map(function (i) { return i.name + " × " + i.qty + " " + catalog[i.name].unit; }).join("\n"),
+      "用途說明": safeText(purpose), "使用地點": safeText(place), "狀態": BORROW.equipApprove
+    }));
+    notifyRole("equip", "【器材借用】新的申請待審核 " + no,
+      name + "（" + unit + "）申請借用器材，期間 " + range.start + " 至 " + range.end + "。\n\n請到 https://szenglish.github.io/borrow.html 登入審核。");
+    return { ok: true, no: no };
+  });
+}
+
+function borrowCancel(who, input) {
+  return withLock(function () {
+    var r = findRequest(input.no);
+    if (r.email !== who.email) throw new Error("只能取消自己的申請");
+    if ([BORROW.equipApprove, BORROW.presidentApprove].indexOf(r.status) < 0) throw new Error("這筆申請已經核准或結束，不能取消，請聯絡器材長");
+    setRequest(r, { "狀態": BORROW.cancelled });
+    return { ok: true };
+  });
+}
+
+function borrowAct(who, input) {
+  if (!who.officer) throw authError("只有幹部可以審核", true);
+  var act = text(input.act);
+  var stamp = who.officer.name + " " + formatDate(new Date(), "yyyy/MM/dd HH:mm");
+  return withLock(function () {
+    var r = findRequest(input.no);
+    if (act === "approve") {
+      if (r.status === BORROW.equipApprove) {
+        if (!who.roles.equip) throw new Error("這一關要由器材長審核");
+        var left = shortages(r);
+        if (left) throw new Error(left);
+        setRequest(r, { "狀態": BORROW.presidentApprove, "器材長審核": "同意（" + stamp + "）" });
+        notifyRole("president", "【器材借用】待會長審核 " + r.no,
+          r.name + "（" + r.unit + "）的借用申請已由器材長同意，期間 " + r.start + " 至 " + r.end + "。\n\n請到 https://szenglish.github.io/borrow.html 登入審核。");
+      } else if (r.status === BORROW.presidentApprove) {
+        if (!who.roles.president) throw new Error("這一關要由會長審核");
+        setRequest(r, { "狀態": BORROW.approved, "會長審核": "同意（" + stamp + "）" });
+        mailApplicant(r, "【器材借用】申請已核准 " + r.no,
+          "你的器材借用申請已核准。\n\n借用期間：" + r.start + " 至 " + r.end + "\n借用物品：\n" + r.items +
+          "\n\n領取時請到科學會辦公室（A717），與承辦人員當面確認器材無誤。器材若遺失或損壞需照價賠償。");
+      } else {
+        throw new Error("這筆申請目前是「" + r.status + "」，不能核准");
+      }
+    } else if (act === "reject") {
+      if ([BORROW.equipApprove, BORROW.presidentApprove].indexOf(r.status) < 0) throw new Error("這筆申請目前是「" + r.status + "」，不能退回");
+      if (r.status === BORROW.equipApprove && !who.roles.equip) throw new Error("這一關要由器材長審核");
+      if (r.status === BORROW.presidentApprove && !who.roles.president) throw new Error("這一關要由會長審核");
+      var reason = text(input.reason).slice(0, 200);
+      if (!reason) throw new Error("請填寫退回原因");
+      var column = r.status === BORROW.equipApprove ? "器材長審核" : "會長審核";
+      var change = { "狀態": BORROW.rejected, "退回原因": safeText(reason) };
+      change[column] = "退回（" + stamp + "）";
+      setRequest(r, change);
+      mailApplicant(r, "【器材借用】申請未通過 " + r.no,
+        "很抱歉，你的器材借用申請未通過。\n\n原因：" + reason + "\n\n如有疑問，請聯絡科學會器材長。");
+    } else if (act === "lend") {
+      if (r.status !== BORROW.approved) throw new Error("核准後才能借出");
+      setRequest(r, { "狀態": BORROW.lent, "借出紀錄": stamp });
+    } else if (act === "return") {
+      if (r.status !== BORROW.lent) throw new Error("借出後才能登記歸還");
+      setRequest(r, { "狀態": BORROW.returned, "歸還驗收": stamp, "歸還備註": safeText(text(input.note).slice(0, 200)) });
+      mailApplicant(r, "【器材借用】已完成歸還 " + r.no,
+        "你借用的器材已歸還並完成驗收，謝謝。" + (text(input.note) ? "\n\n驗收備註：" + text(input.note) : ""));
+    } else {
+      throw new Error("不支援的操作");
+    }
+    return { ok: true };
+  });
+}
+
+// 核准前再確認一次數量（扣掉這筆自己）。
+function shortages(r) {
+  var catalog = {};
+  equipmentList().forEach(function (item) { catalog[item.name] = item; });
+  var problems = parseItems(r.items).filter(function (i) {
+    var item = catalog[i.name];
+    return !item || i.qty > item.total - bookedQuantity(i.name, r.start, r.end, r.no);
+  }).map(function (i) { return i.name; });
+  return problems.length ? "這段期間數量不足：" + problems.join("、") : "";
+}
+
+function equipmentList() {
+  return readTable("equipment").filter(function (r) {
+    return text(r["器材名稱"]) && text(r["可借用"]) !== "否";
+  }).map(function (r) {
+    return { name: text(r["器材名稱"]), total: Number(r["數量"]) || 0, unit: text(r["單位"]) || "個", note: text(r["備註"]) };
+  });
+}
+
+// 期間重疊、還在進行中的申請，總共借走多少。
+function bookedQuantity(name, start, end, exceptNo) {
+  return borrowRequests().filter(function (r) {
+    return BORROW_ACTIVE.indexOf(r.status) >= 0 && r.no !== exceptNo && r.start <= end && start <= r.end;
+  }).reduce(function (sum, r) {
+    return sum + parseItems(r.items).filter(function (i) { return i.name === name; })
+      .reduce(function (s, i) { return s + i.qty; }, 0);
+  }, 0);
+}
+
+// 「麥克風 × 2 支」一行一項。
+function parseItems(value) {
+  return text(value).split("\n").map(function (line) {
+    var match = /^(.*?)\s*×\s*(\d+)/.exec(line);
+    return match ? { name: match[1].trim(), qty: Number(match[2]) } : null;
+  }).filter(Boolean);
+}
+
+function borrowRequests() {
+  return readTable("borrows").filter(function (r) { return text(r["申請編號"]); }).map(function (r) {
+    return {
+      row: r._row, no: text(r["申請編號"]), created: dateText(r["申請時間"]),
+      id: idOf(r["學號"]), name: text(r["借用人"]), email: text(r["信箱"]).toLowerCase(),
+      unit: text(r["借用單位"]), phone: text(r["聯絡電話"]).replace(/^'/, ""),
+      start: dayText(r["開始日期"]), end: dayText(r["結束日期"]),
+      items: text(r["借用物品"]), purpose: text(r["用途說明"]), place: text(r["使用地點"]),
+      status: text(r["狀態"]), equip: text(r["器材長審核"]), president: text(r["會長審核"]),
+      reason: text(r["退回原因"]), lent: text(r["借出紀錄"]), returned: text(r["歸還驗收"]), returnNote: text(r["歸還備註"])
+    };
+  });
+}
+
+function publicRequest(r) {
+  var copy = {};
+  Object.keys(r).forEach(function (k) { if (k !== "row") copy[k] = r[k]; });
+  return copy;
+}
+
+function findRequest(no) {
+  var r = borrowRequests().filter(function (x) { return x.no === text(no); })[0];
+  if (!r) throw new Error("找不到這筆申請");
+  return r;
+}
+
+function setRequest(r, values) {
+  var sheet = getSheet("borrows");
+  var header = headerOf(sheet);
+  Object.keys(values).forEach(function (h) {
+    var col = header.indexOf(h);
+    if (col >= 0) sheet.getRange(r.row, col + 1).setValue(values[h]);
+  });
+}
+
+// 申請編號：B + 日期 + 流水號，例如 B1115-01（11 月 15 日第 1 筆）。
+function nextBorrowNo() {
+  var prefix = "B" + formatDate(new Date(), "MMdd") + "-";
+  var max = 0;
+  borrowRequests().forEach(function (r) {
+    if (r.no.indexOf(prefix) === 0) max = Math.max(max, Number(r.no.slice(prefix.length)) || 0);
+  });
+  return prefix + String(max + 1).padStart(2, "0");
+}
+
+function notifyRole(role, subject, body) {
+  readTable("officers").forEach(function (r) {
+    var title = text(r["職稱"]);
+    var match = role === "equip" ? title.indexOf("器材") >= 0 : title === "會長";
+    if (match && text(r["Gmail"])) sendMail(text(r["Gmail"]), subject, body);
+  });
+}
+
+function mailApplicant(r, subject, body) {
+  sendMail(r.email, subject, r.name + " 你好：\n\n" + body + "\n\n申請編號：" + r.no + "\n查看進度：https://szenglish.github.io/borrow.html\n\n樹人醫專應用英語科學會");
+}
+
+// 寄信失敗（例如超過每日額度）不影響審核結果。
+function sendMail(to, subject, body) {
+  try {
+    MailApp.sendEmail({ to: to, subject: subject, body: body, name: "應用英語科學會" });
+  } catch (err) {
+    console.error("寄信失敗", to, err);
+  }
+}
+
+function dateRange(start, end) {
+  var s = dayText(start);
+  var e = dayText(end);
+  if (!s || !e) throw new Error("請選擇借用期間");
+  if (e < s) throw new Error("結束日期不能早於開始日期");
+  return { start: s, end: e };
+}
+
+// 日期統一成 yyyy/MM/dd，方便比較。
+function dayText(value) {
+  if (value instanceof Date) return formatDate(value, "yyyy/MM/dd");
+  var match = /^(\d{4})\D(\d{1,2})\D(\d{1,2})/.exec(text(value));
+  if (!match) return "";
+  return match[1] + "/" + ("0" + match[2]).slice(-2) + "/" + ("0" + match[3]).slice(-2);
+}
+
+function today() {
+  return formatDate(new Date(), "yyyy/MM/dd");
+}
+
+function addDays(day, n) {
+  var parts = day.split("/");
+  var d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]) + n, 12);
+  return d.getFullYear() + "/" + ("0" + (d.getMonth() + 1)).slice(-2) + "/" + ("0" + d.getDate()).slice(-2);
 }
 
 // ── 試算表讀寫 ───────────────────────────────────────────

@@ -8,7 +8,9 @@
     { label: "應英月刊", href: "news.html", page: "news" },
     { label: "關於我們", href: "about.html", page: "about" },
     { label: "會費查詢", href: "paycheck.html", page: "paycheck" },
+    { label: "線上投票", href: "vote.html", page: "vote" },
     { label: "文件專區", href: "documents.html", page: "documents" },
+    { label: "器材借用", href: "borrow.html", page: "borrow", footerOnly: true },
     { label: "友站連結", href: "links.html", page: "links", footerOnly: true },
     { label: "聯絡我們", href: "contact.html", page: "contact" },
     { label: "隱私權政策", href: "privacy.html", page: "privacy", footerOnly: true }

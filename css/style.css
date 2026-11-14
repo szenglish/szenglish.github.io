@@ -1350,6 +1350,8 @@ html:has(.sub-nav) { scroll-padding-top: 150px; }
   outline-offset: 2px;
 }
 
+.field input[type="text"],
+.field input[type="email"],
 .field textarea {
   display: block;
   width: 100%;
@@ -1363,6 +1365,8 @@ html:has(.sub-nav) { scroll-padding-top: 150px; }
   resize: vertical;
 }
 
+.field input[type="text"]:focus,
+.field input[type="email"]:focus,
 .field textarea:focus {
   outline: 3px solid var(--red);
   outline-offset: 1px;
@@ -2182,6 +2186,273 @@ html:has(.sub-nav) { scroll-padding-top: 150px; }
   .collect-today .collect-list { border-top: 1px solid var(--rule); }
 
   .collect-toasts { bottom: 24px; }
+}
+
+/* 線上投票 */
+.vote-page { max-width: calc(800px + 2 * var(--gutter)); }
+
+.vote-list { display: grid; gap: 12px; }
+
+.vote-card {
+  display: block;
+  padding: 20px 22px;
+  background: var(--mist);
+  border-left: 6px solid var(--rule);
+  color: inherit;
+  text-decoration: none;
+  transition: background-color .15s ease;
+}
+
+.vote-card:hover { background: #ebe7e2; }
+
+.vote-card.is-open { border-left-color: var(--red); }
+
+.vote-card-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+
+.vote-card-head h2 { color: var(--navy); font-size: 22px; font-weight: 900; line-height: 1.35; }
+
+.vote-card-desc { margin-top: 6px; color: var(--ink); white-space: pre-line; }
+
+.vote-card-meta { margin-top: 6px; color: var(--muted); font-size: 15px; }
+
+.vote-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  background: var(--rule);
+  color: var(--navy);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.vote-chip.is-open { background: var(--red); color: var(--white); }
+
+.vote-chip.is-upcoming { background: #fbf0d6; color: #6b4a00; }
+
+.vote-head { margin-top: 8px; padding-bottom: 20px; border-bottom: 1px solid var(--rule); }
+
+.vote-body { margin-top: 24px; }
+
+.vote-notice {
+  padding: 16px 18px;
+  background: var(--mist);
+  border-left: 4px solid var(--navy);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.vote-notice.is-ok { border-left-color: #23633e; background: #e4f1e8; color: #1c5232; }
+
+.vote-notice.is-error { border-left-color: var(--red); background: #f8e5e6; color: var(--red-deep); }
+
+.vote-notice + .vote-signin { margin-top: 16px; }
+
+.vote-signin { padding: 28px; background: var(--mist); border-top: 4px solid var(--red); }
+
+.vote-signin h3 { color: var(--navy); font-size: 22px; font-weight: 900; }
+
+.vote-signin p { margin-top: 8px; color: var(--ink); }
+
+.vote-signin .vote-privacy { color: var(--muted); font-size: 15px; }
+
+.vote-signin .signin-button { min-height: 44px; margin-top: 20px; }
+
+.vote-signin .vote-signin-tip { margin-top: 16px; color: var(--muted); font-size: 14px; }
+
+.vote-voter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+}
+
+.vote-voter p { font-weight: 700; color: var(--navy); }
+
+.vote-question {
+  margin: 16px 0 0;
+  padding: 20px 22px;
+  background: var(--white);
+  border: 1px solid var(--rule);
+}
+
+.vote-question legend, .vote-question h3 {
+  float: left;
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 0;
+  color: var(--navy);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.vote-question legend + * { clear: both; }
+
+.vote-no {
+  display: inline-grid;
+  place-items: center;
+  min-width: 28px;
+  height: 28px;
+  margin-right: 10px;
+  padding: 0 6px;
+  background: var(--navy);
+  color: var(--white);
+  font-size: 14px;
+  vertical-align: 2px;
+}
+
+.vote-text { margin-top: 10px; }
+
+.vote-text p { white-space: pre-line; }
+
+.vote-text-label { color: var(--muted); font-size: 14px; font-weight: 700; }
+
+.vote-text.is-revised p:not(.vote-text-label) { color: var(--red-deep); }
+
+.vote-options { margin-top: 16px; clear: both; }
+
+.vote-options span { min-width: 88px; justify-content: center; }
+
+.vote-submit-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 20px;
+  padding: 14px 0 calc(14px + env(safe-area-inset-bottom, 0px));
+  background: var(--white);
+  border-top: 1px solid var(--rule);
+}
+
+.vote-submit-bar .button { flex: none; border: 0; font-family: inherit; cursor: pointer; }
+
+.vote-submit-bar .button:disabled { opacity: .45; cursor: not-allowed; }
+
+.vote-progress { flex: 1; min-width: 0; }
+
+.vote-progress-text { color: var(--navy); font-size: 15px; font-weight: 700; }
+
+.vote-progress-track { display: block; height: 8px; margin-top: 6px; background: var(--mist); overflow: hidden; }
+
+.vote-progress-fill { display: block; height: 100%; width: 0; background: var(--red); transition: width .2s ease; }
+
+.vote-results-total { color: var(--navy); font-size: 18px; font-weight: 900; }
+
+.vote-bars { margin: 0; padding: 0; list-style: none; clear: both; }
+
+.vote-bars li + li { margin-top: 12px; }
+
+.vote-bar-label { display: flex; justify-content: space-between; gap: 12px; font-weight: 700; }
+
+.vote-bar-label span:last-child { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* 器材借用 */
+.borrow-rules { padding: 20px 24px; background: var(--mist); border-left: 4px solid var(--red); }
+
+.borrow-rules h2 { color: var(--navy); font-size: 20px; font-weight: 900; }
+
+.borrow-rules ol { margin: 8px 0 0; padding-left: 1.4em; }
+
+.borrow-rules li + li { margin-top: 4px; }
+
+#borrow-app { margin-top: 28px; }
+
+.borrow-section { margin-top: 32px; }
+
+.borrow-section > h2 { color: var(--navy); font-size: 24px; font-weight: 900; }
+
+.borrow-hint { margin-top: 6px; color: var(--muted); font-size: 15px; }
+
+.borrow-hint.is-error { color: var(--red-deep); font-weight: 700; }
+
+.borrow-form { margin-top: 12px; padding: 24px; background: var(--mist); border-top: 4px solid var(--red); }
+
+.borrow-form .field { margin-top: 18px; }
+
+.borrow-form .field > label { margin-bottom: 6px; }
+
+.borrow-form input[type="text"],
+.borrow-form input[type="tel"],
+.borrow-form input[type="date"],
+.borrow-form input[type="number"],
+.borrow-form textarea {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 14px;
+  background: var(--white);
+  border: 1px solid var(--rule);
+  border-radius: 0;
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+}
+
+.borrow-form input:focus, .borrow-form textarea:focus { outline: 3px solid var(--red); outline-offset: 1px; }
+
+.borrow-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 16px; }
+
+.borrow-grid .field:nth-child(-n + 2) { margin-top: 0; }
+
+.borrow-items { display: grid; gap: 6px; }
+
+.borrow-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--white);
+  border: 1px solid var(--rule);
+}
+
+.borrow-item > div { flex: 1; min-width: 0; }
+
+.borrow-item-name { color: var(--navy); font-weight: 700; }
+
+.borrow-item-meta { color: var(--muted); font-size: 14px; }
+
+.borrow-item input[type="number"] { flex: none; width: 84px; text-align: center; }
+
+.borrow-item.is-out { opacity: .55; }
+
+.borrow-form > .button { margin-top: 24px; border: 0; font-family: inherit; cursor: pointer; }
+
+.borrow-form > .button:disabled { opacity: .6; cursor: wait; }
+
+.borrow-filter { margin-top: 12px; }
+
+.borrow-list { display: grid; gap: 12px; margin-top: 12px; }
+
+.borrow-card { padding: 18px 20px; background: var(--white); border: 1px solid var(--rule); }
+
+.borrow-card h3 { color: var(--navy); font-size: 18px; font-weight: 900; }
+
+.borrow-details {
+  display: grid;
+  grid-template-columns: 6.5em minmax(0, 1fr);
+  gap: 6px 12px;
+  margin: 12px 0 0;
+}
+
+.borrow-details > div { display: contents; }
+
+.borrow-details dt { color: var(--muted); font-size: 14px; }
+
+.borrow-details dd { margin: 0; white-space: pre-line; overflow-wrap: anywhere; }
+
+.borrow-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--rule); }
+
+.borrow-actions .button { min-height: 44px; border: 0; font-family: inherit; cursor: pointer; }
+
+@media (max-width: 640px) {
+  .borrow-grid { grid-template-columns: minmax(0, 1fr); }
+  .borrow-grid .field:nth-child(2) { margin-top: 18px; }
+  .borrow-form { padding: 18px; }
 }
 
 /* 文章 */

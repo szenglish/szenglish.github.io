@@ -566,10 +566,15 @@
     var form = document.getElementById("feedback-form");
     var message = document.getElementById("feedback-message");
     var submit = form.querySelector("button[type=submit]");
-    var FIELDS = ["grade", "rating", "completed", "suggestion"];
+    var FIELDS = ["name", "email", "suggestion"];
+    var EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     function value(name) {
       return form.elements[name].value.trim();
+    }
+
+    function invalidField(name) {
+      return !value(name) || (name === "email" && !EMAIL.test(value("email")));
     }
 
     function showError(name, show) {
@@ -579,21 +584,21 @@
 
     FIELDS.forEach(function (name) {
       form.querySelectorAll("[name=" + name + "]").forEach(function (input) {
-        input.addEventListener("input", function () { showError(name, !value(name)); });
+        input.addEventListener("input", function () { showError(name, invalidField(name)); });
       });
     });
 
     form.addEventListener("submit", function (event) {
       event.preventDefault();
       var invalid = FIELDS.filter(function (name) {
-        var missing = !value(name);
-        showError(name, missing);
-        return missing;
+        var bad = invalidField(name);
+        showError(name, bad);
+        return bad;
       });
       if (invalid.length) {
         form.querySelector("[name=" + invalid[0] + "]").focus();
         message.className = "form-message is-error";
-        message.textContent = "還有 " + invalid.length + " 題沒有填寫。";
+        message.textContent = "還有 " + invalid.length + " 個欄位需要填寫或修正。";
         return;
       }
       // 機器人才會填這個隱藏欄位。
@@ -612,10 +617,10 @@
         // 用 text/plain 才不會觸發 Apps Script 不支援的跨網域預檢。
         headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify({
-          grade: value("grade"),
-          rating: value("rating"),
-          completed: value("completed"),
+          name: value("name"),
+          email: value("email"),
           suggestion: value("suggestion"),
+          dept: value("dept"),
           website: value("website")
         })
       }).then(function (res) {
@@ -624,15 +629,15 @@
         if (!result.ok) throw new Error(result.error || "送出失敗");
         replace(form, [
           el("div", { class: "form-success", tabindex: "-1" }, [
-            el("h3", { text: "謝謝你的意見！" }),
-            el("p", { text: "我們已經收到，會作為改善網站的參考。" })
+            el("h3", { text: "已收到你的意見，謝謝！" }),
+            el("p", { text: "我們會盡快回覆到 " + value("email") + "。" })
           ])
         ]);
         form.querySelector(".form-success").focus();
       }).catch(function (err) {
         console.error("意見送出失敗", err);
         submit.disabled = false;
-        submit.textContent = "送出意見";
+        submit.textContent = "送出";
         message.className = "form-message is-error";
         message.textContent = "送出失敗，你填的內容還在，請稍後再試，或寄信到 " + S.config.email + "。";
       });
