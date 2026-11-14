@@ -51,7 +51,7 @@
     list.hidden = false;
     replace(list, [S.statusMessage("讀取中…")]);
     get({ action: "votes" }).then(function (data) {
-      if (!data.events.length) return replace(list, [S.statusMessage("目前沒有投票活動。")]);
+      if (!data.events.length) return replace(list, [S.statusMessage("目前無進行中的投票活動。")]);
       var order = { open: 0, upcoming: 1, closed: 2 };
       var events = data.events.slice().sort(function (a, b) { return order[a.status] - order[b.status]; });
       replace(list, events.map(function (e) {
@@ -109,9 +109,9 @@
       ]),
       body
     ]);
-    if (e.status === "upcoming") return replace(body, [notice("投票將於 " + e.start + " 開始。")]);
+    if (e.status === "upcoming") return replace(body, [notice("本次投票將於 " + e.start + " 開始。")]);
     if (e.status === "closed") {
-      return replace(body, e.results ? [results(e)] : [notice("投票已結束，結果尚未公布。")]);
+      return replace(body, e.results ? [results(e)] : [notice("本次投票已截止，結果尚未公布。")]);
     }
     replace(body, [signIn()]);
   }
@@ -120,11 +120,11 @@
 
   function signIn() {
     var box = el("div", { class: "vote-signin" }, [
-      el("h3", { text: "以學校 Google 帳號登入投票" }),
-      el("p", { text: "請使用 s學號@student.szmc.edu.tw 登入，系統會依學號確認投票資格，每人限投一次。" }),
-      el("p", { class: "vote-privacy", text: "投票內容會連同學號記錄，僅供選舉委員會查核；對外公布的結果只有各選項的票數。" }),
+      el("h3", { text: "請登入以進行投票" }),
+      el("p", { text: "請以學校 Google 帳號（s學號@student.szmc.edu.tw）登入。系統將依學號確認投票資格，每人限投一次。" }),
+      el("p", { class: "vote-privacy", text: "投票內容將連同學號一併記錄，僅供選舉委員會查核；對外僅公布各選項之票數。" }),
       el("div", { class: "signin-button", id: "vote-signin-button" }),
-      el("p", { class: "vote-signin-tip", text: "無法登入時，請改用 Chrome 或 Safari 開啟此頁面。" })
+      el("p", { class: "vote-signin-tip", text: "若無法登入，請改以 Chrome 或 Safari 開啟本頁面。" })
     ]);
     setTimeout(function () { setupGoogle(box.querySelector("#vote-signin-button")); }, 0);
     return box;
@@ -147,17 +147,17 @@
 
   function checkStatus() {
     var body = view.querySelector(".vote-body");
-    replace(body, [S.statusMessage("確認投票資格中…")]);
+    replace(body, [S.statusMessage("正在確認投票資格…")]);
     post({ action: "voteStatus", event: current.id }).then(function (res) {
       if (!res.ok) {
         token = null;
         return replace(body, [notice(res.error, "error"), signIn()]);
       }
-      if (!res.eligible) return replace(body, [notice("學號 " + res.id + " 沒有這次投票的資格。如有疑問，請聯絡科學會。", "error")]);
-      if (res.voted) return replace(body, [notice("學號 " + res.id + " 已經投過票了，謝謝你的參與。", "ok")]);
+      if (!res.eligible) return replace(body, [notice("此帳號（學號 " + res.id + "）不具本次投票資格。投票資格限本科在學會員，如有疑義，請洽應用英語科學會。", "error")]);
+      if (res.voted) return replace(body, [notice("此帳號（學號 " + res.id + "）已完成本次投票，感謝您的參與。", "ok")]);
       replace(body, [ballot(res)]);
     }).catch(function () {
-      replace(body, [notice("連線失敗，請稍後再試。", "error"), signIn()]);
+      replace(body, [notice("系統連線失敗，請稍後再試。", "error"), signIn()]);
     });
   }
 
@@ -183,7 +183,7 @@
     if (questions.some(function (q) { return q.type === "agree"; })) {
       agreeAll = el("button", { class: "text-button vote-agree-all", type: "button", text: "全部選「同意」" });
       agreeAll.addEventListener("click", function () {
-        if (!confirm("把所有「同意／反對」的題目都選成同意？送出前仍可以逐題修改。")) return;
+        if (!confirm("是否將所有「同意／反對」題目設為「同意」？送出前仍可逐題修改。")) return;
         questions.forEach(function (q) {
           if (q.type !== "agree") return;
           answers[q.no] = "同意";
@@ -212,12 +212,12 @@
 
     form.addEventListener("submit", function (event) {
       event.preventDefault();
-      if (!confirm("送出後就不能修改，確定送出？")) return;
+      if (!confirm("選票送出後即無法修改，確定送出？")) return;
       submit.disabled = true;
       submit.textContent = "送出中…";
       post({ action: "voteSubmit", event: current.id, answers: answers }).then(function (res) {
         if (!res.ok) throw new Error(res.error);
-        replace(view.querySelector(".vote-body"), [notice("投票完成，謝謝你的參與！", "ok")]);
+        replace(view.querySelector(".vote-body"), [notice("選票已送出，感謝您的參與。", "ok")]);
         window.scrollTo({ top: 0 });
       }).catch(function (err) {
         submit.disabled = false;

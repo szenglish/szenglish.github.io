@@ -2271,6 +2271,50 @@ html:has(.sub-nav) { scroll-padding-top: 150px; }
 
 .vote-voter p { font-weight: 700; color: var(--navy); }
 
+/* 器材借用：登入者資訊卡 */
+.borrow-who {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  background: var(--white);
+  border: 1px solid var(--rule);
+  border-left: 4px solid var(--red);
+}
+.borrow-avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--navy);
+  color: var(--white);
+  font-weight: 900;
+  font-size: 1.15rem;
+}
+.borrow-who-text { flex: 1; min-width: 0; }
+.borrow-who-name { margin: 0; font-weight: 900; font-size: 1.1rem; color: var(--navy); }
+.borrow-who-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.borrow-tag {
+  padding: 2px 8px;
+  background: var(--mist);
+  color: var(--navy);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.borrow-tag.is-officer { background: var(--gold); color: var(--navy); }
+.borrow-who-email { overflow-wrap: anywhere; }
+.borrow-switch { flex: none; min-height: 44px; }
+
 .vote-question {
   margin: 16px 0 0;
   padding: 20px 22px;

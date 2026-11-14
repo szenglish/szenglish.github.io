@@ -414,16 +414,16 @@ function handleVoter(input) {
 }
 
 function submitVote(event, voter, answers) {
-  if (event.status !== "open") throw new Error(event.status === "upcoming" ? "投票還沒開始" : "投票已經結束");
-  if (!voter.eligible) throw new Error("這個帳號沒有投票資格");
+  if (event.status !== "open") throw new Error(event.status === "upcoming" ? "本次投票尚未開始" : "本次投票已截止");
+  if (!voter.eligible) throw new Error("此帳號不具本次投票資格");
   var questions = questionsOf(event.id);
   var picked = questions.map(function (q) {
     var answer = text(answers[q.no]);
-    if (q.options.indexOf(answer) < 0) throw new Error("第 " + q.no + " 題還沒有選擇");
+    if (q.options.indexOf(answer) < 0) throw new Error("第 " + q.no + " 題尚未作答");
     return { q: q, answer: answer };
   });
   return withLock(function () {
-    if (hasVoted(event.id, voter.id)) return { ok: false, error: "你已經投過票了，每個人只能投一次", voted: true };
+    if (hasVoted(event.id, voter.id)) return { ok: false, error: "此帳號已完成本次投票，每人限投一次", voted: true };
     getSheet("voteNamed", true).appendRow(rowFor("voteNamed", {
       "時間": new Date(), "活動代號": event.id, "學號": "'" + voter.id, "姓名": voter.name, "信箱": voter.email,
       "答案": picked.map(function (p) { return p.q.no + ". " + p.answer; }).join("\n")
@@ -451,7 +451,12 @@ function submitVote(event, voter, answers) {
 function verifyStudent(token) {
   var email = verifyGoogleEmail(token);
   var match = SCHOOL_EMAIL.exec(email);
-  if (!match) throw authError("請用學校信箱（s學號@student.szmc.edu.tw）登入，" + email + " 不能投票", true);
+  // 開發者可以用自己的 Gmail 測試投票，紀錄的學號欄會寫「開發者」。
+  var developer = readTable("officers").filter(function (r) {
+    return text(r["Gmail"]).toLowerCase() === email && text(r["職稱"]) === "開發者";
+  })[0];
+  if (!match && developer) return { id: "開發者", email: email, name: text(developer["姓名"]), eligible: true };
+  if (!match) throw authError("請以學校信箱（s學號@student.szmc.edu.tw）登入。" + email + " 不具投票資格", true);
   var id = match[1];
   var member = findMember(id);
   var year = readSettings().year;
@@ -492,7 +497,7 @@ function findEvent(rawId) {
   var now = Date.now();
   var event = readTable("voteEvents").map(function (r) { return eventOf(r, now); })
     .filter(function (e) { return e.id && e.id === id; })[0];
-  if (!event) throw new Error("找不到這個投票活動");
+  if (!event) throw new Error("查無此投票活動");
   return event;
 }
 
@@ -541,7 +546,7 @@ function toTime(value) {
 
 // ── 器材借用 ─────────────────────────────────────────────
 // 學生用學校帳號申請；器材長審核 → 會長審核 → 借出 → 歸還。
-// 器材長、會長依「幹部」分頁的職稱判斷，審核結果會寄信通知申請人。
+// 器材長、會長依「幹部」分頁的職稱判斷（職稱「開發者」兩關都能審），審核結果會寄信通知申請人。
 
 var BORROW = {
   equipApprove: "待器材長審核",
@@ -598,8 +603,9 @@ function borrowWho(email) {
   if (officer) {
     var title = text(officer["職稱"]);
     who.officer = { name: text(officer["姓名"]) || email.split("@")[0], title: title };
-    who.roles.equip = title.indexOf("器材") >= 0;
-    who.roles.president = title === "會長";
+    var developer = title === "開發者"; // 開發者擁有所有權限（不會收到通知信）
+    who.roles.equip = developer || title.indexOf("器材") >= 0;
+    who.roles.president = developer || title === "會長";
   }
   if (!who.student && !who.officer) throw authError("請用學校信箱（s學號@student.szmc.edu.tw）登入申請借用", true);
   return who;
@@ -814,8 +820,17 @@ function mailApplicant(r, subject, body) {
 }
 
 // 寄信失敗（例如超過每日額度）不影響審核結果。
+// 「設定」分頁的「測試模式」為「是」時，所有信件改寄給職稱「開發者」的人，主旨標出原本的收件人。
 function sendMail(to, subject, body) {
   try {
+    if (readSettings().testMode) {
+      var developers = readTable("officers").filter(function (r) {
+        return text(r["職稱"]) === "開發者" && text(r["Gmail"]);
+      }).map(function (r) { return text(r["Gmail"]); });
+      if (!developers.length) return;
+      subject = "【測試｜原收件人 " + to + "】" + subject;
+      to = developers.join(",");
+    }
     MailApp.sendEmail({ to: to, subject: subject, body: body, name: "應用英語科學會" });
   } catch (err) {
     console.error("寄信失敗", to, err);
@@ -884,7 +899,11 @@ function rowFor(key, values) {
 function readSettings() {
   var map = {};
   getSheet("settings").getDataRange().getValues().forEach(function (row) { map[text(row[0])] = row[1]; });
-  return { year: parseInt(text(map["目前學年"]), 10) || 0, fee: Number(map["會費金額"]) || 0 };
+  return {
+    year: parseInt(text(map["目前學年"]), 10) || 0,
+    fee: Number(map["會費金額"]) || 0,
+    testMode: text(map["測試模式"]) === "是"
+  };
 }
 
 function findMember(id) {

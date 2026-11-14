@@ -88,12 +88,31 @@
     });
   }
 
+  // 登入者資訊卡：頭像、姓名、身分標籤和換帳號按鈕。
+  function whoCard() {
+    var name = (who.student && who.student.name) || (who.officer && who.officer.name) || who.email.split("@")[0];
+    var tags = [];
+    if (who.student) tags.push(el("span", { class: "borrow-tag", text: "學號 " + who.student.id }));
+    if (who.officer) tags.push(el("span", { class: "borrow-tag is-officer", text: who.officer.title || "幹部" }));
+    var change = el("button", { class: "text-button borrow-switch", type: "button", text: "換帳號" });
+    change.addEventListener("click", function () {
+      token = null;
+      who = null;
+      if (window.google && google.accounts) google.accounts.id.disableAutoSelect();
+      showSignin();
+    });
+    return el("div", { class: "borrow-who" }, [
+      el("span", { class: "borrow-avatar", "aria-hidden": "true", text: name.charAt(0) }),
+      el("div", { class: "borrow-who-text" }, [
+        el("p", { class: "borrow-who-name", text: name }),
+        el("p", { class: "borrow-who-meta" }, tags.concat([el("span", { class: "borrow-who-email", text: who.email })]))
+      ]),
+      change
+    ]);
+  }
+
   function render() {
-    var parts = [
-      el("div", { class: "vote-voter borrow-who" }, [
-        el("p", { text: who.student ? "學號 " + who.student.id + (who.student.name ? "　" + who.student.name : "") : who.officer.name + "（" + who.officer.title + "）" })
-      ])
-    ];
+    var parts = [whoCard()];
     if (who.officer) parts.push(reviewSection());
     if (who.student) parts.push(applySection(), mineSection());
     replace(app, parts);
