@@ -1532,6 +1532,42 @@ html:has(.sub-nav) { scroll-padding-top: 150px; }
 
 .paycheck-card + .paycheck-card { margin-top: 12px; }
 
+/* 示範模式提示（網址加 ?demo=1） */
+.demo-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: calc(env(safe-area-inset-top, 0px) + 8px) 16px 8px;
+  background: var(--gold);
+  color: var(--navy);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.demo-banner p { flex: 1; min-width: 0; }
+
+.demo-banner button {
+  flex: none;
+  min-height: 44px;
+  padding: 0 14px;
+  background: var(--navy);
+  border: 0;
+  color: var(--white);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.collect-demo-login {
+  min-height: 52px;
+  padding: 0 24px;
+  background: var(--navy);
+  border: 0;
+  color: var(--white);
+  font-size: 17px;
+  font-weight: 700;
+}
+
 /* 幹部收費（手機優先，像 App 一樣使用：上方狀態列、下方分頁列） */
 .collect-page {
   --ok: #23633e;

@@ -92,6 +92,13 @@
   }
 
   function setupGoogle() {
+    // 示範模式（網址加 ?demo=1）不用 Google 登入，直接以示範幹部身分使用。
+    if (S.config.demo) {
+      var demo = el("button", { class: "collect-demo-login", type: "button", text: "以示範幹部身分登入" });
+      demo.addEventListener("click", function () { start("demo"); });
+      replace($("signin-button"), [demo]);
+      return;
+    }
     if (!S.config.googleClientId || !S.config.paycheckUrl) {
       showSignin("網站還沒有設定 googleClientId 或 paycheckUrl，請參考 README 的設定步驟。");
       return;
