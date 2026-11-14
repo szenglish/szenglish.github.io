@@ -2067,12 +2067,36 @@ html:has(.sub-nav) { scroll-padding-top: 150px; }
 /* 用 display 排版的區塊，hidden 時一定要藏起來。 */
 .collect-page [hidden] { display: none !important; }
 
-/* 電腦版：內容、上方狀態列和下方分頁列都對齊同一個 560px 寬的欄位。 */
+/* 登入頁（平板以上）：紅色背景，中間一張白色卡片。 */
 @media (min-width: 768px) {
-  .collect-signin { display: grid; grid-template-columns: 1fr 1fr; }
-  .collect-signin-hero { display: flex; flex-direction: column; justify-content: center; padding: 64px; }
-  .collect-signin-body { align-self: center; padding: 64px; }
+  .collect-signin {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 24px;
+    background: var(--red);
+  }
 
+  .collect-signin-hero { width: 100%; max-width: 440px; padding: 0 0 28px; text-align: center; }
+
+  .collect-signin-hero img { width: 200px; }
+
+  .collect-signin-hero h1 { font-size: 36px; }
+
+  .collect-signin-body {
+    width: 100%;
+    max-width: 440px;
+    padding: 36px 40px 32px;
+    background: var(--white);
+    box-shadow: 0 16px 40px rgba(20, 25, 31, .25);
+  }
+
+  .collect-signin .signin-button { display: flex; justify-content: center; }
+}
+
+/* 平板：內容、上方狀態列和下方分頁列對齊同一個 560px 寬的欄位。 */
+@media (min-width: 768px) and (max-width: 1023px) {
   .collect-bar {
     padding-right: max(16px, calc((100% - 560px) / 2 + 16px));
     padding-left: max(16px, calc((100% - 560px) / 2 + 16px));
@@ -2086,6 +2110,78 @@ html:has(.sub-nav) { scroll-padding-top: 150px; }
     border: 1px solid var(--rule);
     border-bottom: 0;
   }
+}
+
+/* 電腦：左欄找人與收款，右欄固定顯示今日收款；分頁改放在左欄上方。 */
+@media (min-width: 1024px) {
+  .collect-page { --desk-main: 640px; --desk-side: 360px; --desk-gap: 32px; }
+
+  .collect-app:not([hidden]) {
+    display: grid;
+    grid-template-columns: 1fr minmax(0, var(--desk-main)) var(--desk-side) 1fr;
+    grid-template-rows: auto auto auto auto auto 1fr;
+    column-gap: var(--desk-gap);
+    min-height: 100dvh;
+  }
+
+  .collect-bar {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    padding-right: max(16px, calc((100% - var(--desk-main) - var(--desk-side) - var(--desk-gap)) / 2));
+    padding-left: max(16px, calc((100% - var(--desk-main) - var(--desk-side) - var(--desk-gap)) / 2));
+  }
+
+  .collect-body { display: contents; }
+
+  .collect-tabs {
+    position: static;
+    grid-column: 2;
+    grid-row: 2;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin-top: 28px;
+    padding: 4px;
+    border: 1px solid var(--rule);
+    box-shadow: none;
+  }
+
+  .collect-tabs button {
+    flex-direction: row;
+    gap: 8px;
+    min-height: 48px;
+    font-size: 16px;
+  }
+
+  .collect-tabs button[aria-selected="true"] { background: var(--navy); color: var(--white); }
+
+  .collect-tabs button[aria-selected="true"]::before { display: none; }
+
+  .collect-tabs .icon { width: 20px; height: 20px; }
+
+  .collect-mode { grid-column: 2; grid-row: 3; margin-top: 24px; }
+
+  .collect-result { grid-column: 2; grid-row: 4; }
+
+  .collect-people { grid-column: 2; grid-row: 5; align-self: start; padding-bottom: 48px; }
+
+  .collect-today {
+    position: sticky;
+    top: 92px;
+    grid-column: 3;
+    grid-row: 2 / span 5;
+    align-self: start;
+    max-height: calc(100dvh - 116px);
+    overflow-y: auto;
+    margin-top: 28px;
+    padding: 20px;
+    background: var(--white);
+    border: 1px solid var(--rule);
+  }
+
+  .collect-today .collect-stat { background: var(--mist); }
+
+  .collect-today .collect-list { border-top: 1px solid var(--rule); }
+
+  .collect-toasts { bottom: 24px; }
 }
 
 /* 文章 */
