@@ -8,7 +8,6 @@
   var UNDO_SECONDS = 10;
   var REFRESH_MS = 60000;
   var ID_PATTERN = /^\d{5,10}$/;
-  var GRADES = ["一", "二", "三", "四", "五"];
 
   var token = null;
   var refreshTimer = null;
@@ -204,14 +203,15 @@
     return Boolean(entry && state.year && state.year - entry >= 5);
   }
 
-  // 有填「班級」就用班級；沒填的話，依入學年分成一到五年級，已畢業的排在最後。
+  // 有填「班級」就用班級；沒填的話，依入學年分成 1E1 到 5E1，已畢業的排在最後。
   function groupOf(member) {
     if (member.className) return { key: "0" + member.className, label: member.className };
     var entry = entryOf(member);
     if (!entry) return { key: "9", label: "其他學號" };
     if (isGraduated(member)) return { key: "8" + (999 - entry), label: "已畢業（" + entry + " 入學）" };
     var grade = state.year - entry + 1;
-    var label = grade >= 1 && grade <= 5 ? GRADES[grade - 1] + "年級（" + entry + " 入學）" : entry + " 入學";
+    // 應英科每個年級一班：1E1、2E1…5E1。
+    var label = grade >= 1 && grade <= 5 ? grade + "E1（" + entry + " 入學）" : entry + " 入學";
     return { key: "1" + (999 - entry), label: label };
   }
 
@@ -354,7 +354,7 @@
 
   function newMemberCard(id) {
     var name = el("input", { id: "new-name", type: "text", maxlength: "30", autocomplete: "off", placeholder: "例如 王小明" });
-    var className = el("input", { id: "new-class", type: "text", maxlength: "30", autocomplete: "off", placeholder: "例如 應英一忠（可不填）" });
+    var className = el("input", { id: "new-class", type: "text", maxlength: "30", autocomplete: "off", placeholder: "例如 1E1（可不填）" });
     var pay = el("button", { class: "button button-navy collect-pay", type: "button", text: "新增並收款 " + money(state.fee) });
     var note = el("p", { class: "form-message", role: "status" });
     pay.addEventListener("click", function () {
