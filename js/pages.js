@@ -437,7 +437,8 @@
   var ORG = {
     chain: ["首長室", "行政中心", "執行長"],
     departments: ["秘書處", "企劃部", "廣宣部", "器材部", "財務部", "公關部"],
-    independent: { name: "選舉委員會", note: "獨立運作" }
+    independent: { name: "選舉委員會", note: "獨立運作" },
+    advisory: { name: "顧問團", note: "諮詢單位" }
   };
 
   function orgChart() {
@@ -452,10 +453,17 @@
           el("small", { text: ORG.independent.note })
         ])
       ]),
+      // 顧問團給會長建議，不在指揮線上：用虛線接到首長室。
+      el("div", { class: "org-advise" }, [
+        el("p", { class: "org-node org-advisory" }, [
+          el("span", { text: ORG.advisory.name }),
+          el("small", { text: ORG.advisory.note })
+        ])
+      ]),
       el("ul", { class: "org-depts", "aria-label": "執行部門" }, ORG.departments.map(function (name) {
         return el("li", { class: "org-node org-dept", text: name });
       })),
-      el("figcaption", { class: "visually-hidden", text: "應用英語科學會組織架構：首長室、行政中心、執行長，下設六個部門；選舉委員會獨立運作。" })
+      el("figcaption", { class: "visually-hidden", text: "應用英語科學會組織架構：首長室、行政中心、執行長，下設六個部門；顧問團為首長室的諮詢單位；選舉委員會獨立運作。" })
     ]);
   }
 

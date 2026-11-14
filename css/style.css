@@ -1633,7 +1633,7 @@ html:has(.sub-nav) { scroll-padding-top: 150px; }
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   grid-template-areas:
-    "side chain ."
+    "side chain advise"
     "depts depts depts";
   align-items: center;
   max-width: 980px;
@@ -1692,6 +1692,35 @@ html:has(.sub-nav) { scroll-padding-top: 150px; }
   font-size: 16px;
 }
 
+/* 顧問團：和首長室同一高度，左邊一條虛線接過去 */
+.org-advise {
+  --org-advise-gap: clamp(32px, 5vw, 64px);
+  grid-area: advise;
+  align-self: start;
+  justify-self: start;
+  margin-left: var(--org-advise-gap);
+}
+
+.org-advisory {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  border: 2px dashed var(--navy);
+  background: var(--white);
+  color: var(--navy);
+  font-size: 16px;
+}
+
+.org-advisory::before {
+  content: "";
+  position: absolute;
+  top: 24px;
+  right: 100%;
+  width: calc(var(--org-advise-gap) + 2px);
+  border-top: 2px dashed var(--navy);
+}
+
+.org-advisory small,
 .org-independent small {
   color: var(--muted);
   font-family: var(--sans);
@@ -1700,7 +1729,8 @@ html:has(.sub-nav) { scroll-padding-top: 150px; }
   letter-spacing: .1em;
 }
 
-.org-depts {
+/* 加 .org-chart 前綴，才不會被上面清除 ul 邊距的規則蓋掉 */
+.org-chart .org-depts {
   grid-area: depts;
   position: relative;
   display: grid;
@@ -1744,12 +1774,16 @@ html:has(.sub-nav) { scroll-padding-top: 150px; }
   /* 手機上選舉委員會移到最下面，避免擠在旁邊 */
   .org-chart {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: "chain" "depts" "side";
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas: "chain chain" "depts depts" "side advise";
+    column-gap: 12px;
   }
-  .org-side { justify-self: center; margin: 32px 0 0; }
+  .org-side { justify-self: end; margin: 32px 0 0; }
+  .org-advise { align-self: center; justify-self: start; margin: 32px 0 0; }
+  .org-advisory::before { display: none; }
   .org-lead { min-width: 160px; font-size: 16px; }
-  .org-depts { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px 10px; }
-  .org-depts::before { left: calc((100% - 20px) / 6); right: calc((100% - 20px) / 6); }
+  .org-chart .org-depts { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px 10px; }
+  .org-chart .org-depts::before { left: calc((100% - 20px) / 6); right: calc((100% - 20px) / 6); }
   /* 第二排部門用自己的短線連到上排 */
   .org-dept:nth-child(n + 4)::before { height: 24px; }
   .org-dept { padding: 10px 6px; font-size: 15px; }
