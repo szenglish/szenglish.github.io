@@ -249,6 +249,72 @@
     }
   }
 
+  // ── 全站共用的 Google 登入 ──
+  // 登入憑證存在這台裝置（localStorage），在會費管理平台、借用、投票、意見處理、幹部專區之間換頁或重新整理都不用再登入。
+  // 憑證約 1 小時到期；到期後 Google 會自動幫曾經登入過的帳號重新登入（auto_select）。按「換帳號」或「登出」才會清除。
+  var AUTH_KEY = "szae-google-token";
+  var authCallback = null;
+  var authReady = false;
+
+  function tokenExpiry(token) {
+    try {
+      var part = String(token).split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+      return JSON.parse(atob(part)).exp * 1000;
+    } catch (err) {
+      return 0;
+    }
+  }
+
+  function authGet() {
+    try {
+      var saved = localStorage.getItem(AUTH_KEY);
+      if (saved && tokenExpiry(saved) > Date.now() + 60000) return saved;
+      if (saved) localStorage.removeItem(AUTH_KEY);
+    } catch (err) { /* 無痕模式可能不能存，就每次登入 */ }
+    return null;
+  }
+
+  function authSave(token) {
+    try { localStorage.setItem(AUTH_KEY, token); } catch (err) { /* 同上 */ }
+  }
+
+  // 憑證過期：只清掉存的憑證，Google 會自動幫同一個帳號重新登入。
+  function authForget() {
+    try { localStorage.removeItem(AUTH_KEY); } catch (err) { /* 同上 */ }
+  }
+
+  // 登出或換帳號：清掉存的憑證，並請 Google 不要自動選回同一個帳號。
+  function authClear() {
+    authForget();
+    if (window.google && google.accounts) google.accounts.id.disableAutoSelect();
+  }
+
+  // 在 target 放 Google 登入按鈕；登入成功時呼叫 onToken。options.prompt 為 false 時不自動跳出帳號選擇。
+  function authButton(target, onToken, options) {
+    authCallback = onToken;
+    (function wait() {
+      if (!window.google || !google.accounts || !google.accounts.id) return setTimeout(wait, 200);
+      if (!authReady) {
+        google.accounts.id.initialize({
+          client_id: CONFIG.googleClientId,
+          callback: function (response) {
+            authSave(response.credential);
+            if (authCallback) authCallback(response.credential);
+          },
+          auto_select: true,
+          use_fedcm_for_prompt: true
+        });
+        authReady = true;
+      }
+      if (target) {
+        google.accounts.id.renderButton(target, {
+          theme: "filled_black", size: "large", shape: "rectangular", text: "signin_with", locale: "zh-TW", width: 280
+        });
+      }
+      if (!options || options.prompt !== false) google.accounts.id.prompt();
+    })();
+  }
+
   // 圓形頭像：有 Google 大頭貼就用照片，載入失敗或沒有時顯示名字第一個字。
   function avatar(name, picture) {
     var box = el("span", { class: "borrow-avatar", "aria-hidden": "true", text: String(name || "?").charAt(0) });
@@ -264,6 +330,7 @@
     el: el,
     googleProfile: googleProfile,
     avatar: avatar,
+    auth: { get: authGet, save: authSave, forget: authForget, clear: authClear, button: authButton },
     loadData: loadData,
     articleUrl: articleUrl,
     coverImage: coverImage,

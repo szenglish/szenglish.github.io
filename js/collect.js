@@ -3,7 +3,6 @@
 (function () {
   var S = window.SZAE;
   var el = S.el;
-  var TOKEN_KEY = "szae-collect-token";
   var SCANNER_SRC = "https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js";
   var UNDO_SECONDS = 10;
   var REFRESH_MS = 60000;
@@ -54,33 +53,18 @@
 
   // ── 登入 ──
 
-  function tokenExpiry(jwt) {
-    try {
-      var payload = JSON.parse(atob(jwt.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
-      return payload.exp * 1000;
-    } catch (err) {
-      return 0;
-    }
-  }
-
+  // 登入憑證由 site.js 的 S.auth 統一保存，在網站各管理頁之間共用。
   function saveToken(value) {
     token = value;
-    try {
-      if (value) sessionStorage.setItem(TOKEN_KEY, value);
-      else sessionStorage.removeItem(TOKEN_KEY);
-    } catch (err) { /* 無痕模式可能不能存，重新整理後再登入一次即可 */ }
+    if (value && value !== "demo") S.auth.save(value);
   }
 
   function loadToken() {
-    try {
-      var saved = sessionStorage.getItem(TOKEN_KEY);
-      if (saved && tokenExpiry(saved) > Date.now() + 60000) return saved;
-    } catch (err) { /* 同上 */ }
-    return null;
+    return S.config.demo ? null : S.auth.get();
   }
 
   function showSignin(message) {
-    saveToken(null);
+    token = null;
     clearInterval(refreshTimer);
     stopScanner();
     app.hidden = true;
@@ -102,20 +86,7 @@
       showSignin("網站還沒有設定 googleClientId 或 paycheckUrl，請參考 README 的設定步驟。");
       return;
     }
-    if (!window.google || !google.accounts) {
-      setTimeout(setupGoogle, 200);
-      return;
-    }
-    google.accounts.id.initialize({
-      client_id: S.config.googleClientId,
-      callback: function (response) { start(response.credential); },
-      auto_select: true,
-      use_fedcm_for_prompt: true
-    });
-    google.accounts.id.renderButton($("signin-button"), {
-      theme: "filled_black", size: "large", shape: "rectangular", text: "signin_with", locale: "zh-TW", width: 280
-    });
-    if (!token) google.accounts.id.prompt();
+    S.auth.button($("signin-button"), start, { prompt: !token });
   }
 
   function api(body) {
@@ -130,7 +101,13 @@
     }).then(function (data) {
       if (data.auth || data.denied) {
         showSignin(data.error);
-        if (data.denied && window.google) google.accounts.id.disableAutoSelect();
+        if (data.denied) {
+          if (window.google && google.accounts) google.accounts.id.disableAutoSelect();
+        } else {
+          // 憑證過期：清掉後讓 Google 自動重新登入同一個帳號。
+          S.auth.forget();
+          S.auth.button(null, start);
+        }
         throw Object.assign(new Error(data.error), { handled: true });
       }
       return data;
@@ -166,7 +143,7 @@
 
   $("signout").addEventListener("click", function () {
     if (!confirm("要登出 " + state.officer + " 嗎？")) return;
-    if (window.google) google.accounts.id.disableAutoSelect();
+    S.auth.clear();
     state.selected = null;
     render();
     showSignin("");

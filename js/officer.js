@@ -71,29 +71,19 @@
 
   // ── 登入 ──
 
-  function showSignin(message) {
+  function showSignin(message, noPrompt) {
     var box = el("div", { class: "vote-signin officer-signin" }, [
       el("h3", { text: "登入以查看待處理事項" }),
       el("p", { text: "請以登記於幹部名單之 Google 帳號登入。登入後，各項工具將顯示待處理件數。" }),
       el("div", { class: "signin-button", id: "officer-signin-button" })
     ]);
     replace(who, [message ? el("p", { class: "vote-notice is-error", text: message }) : null, box]);
-    setupGoogle(box.querySelector("#officer-signin-button"));
+    setupGoogle(box.querySelector("#officer-signin-button"), noPrompt);
   }
 
-  function setupGoogle(target) {
-    if (!window.google || !google.accounts) {
-      setTimeout(function () { setupGoogle(target); }, 200);
-      return;
-    }
-    google.accounts.id.initialize({
-      client_id: S.config.googleClientId,
-      callback: function (response) { token = response.credential; load(); },
-      use_fedcm_for_prompt: true
-    });
-    google.accounts.id.renderButton(target, {
-      theme: "filled_black", size: "large", shape: "rectangular", text: "signin_with", locale: "zh-TW", width: 280
-    });
+  // 登入由 site.js 的 S.auth 統一處理，換頁或重新整理都會沿用同一個登入。
+  function setupGoogle(target, noPrompt) {
+    S.auth.button(target, function (credential) { token = credential; load(); }, { prompt: !noPrompt });
   }
 
   function load() {
@@ -106,7 +96,8 @@
       var fb = res[0], borrow = res[1], today = res[2];
       if (!fb.ok) {
         token = null;
-        return showSignin(fb.error || "登入失敗");
+        if (fb.auth && !fb.denied) S.auth.forget(); // 登入過期：讓 Google 自動重新登入
+        return showSignin(fb.error || "登入失敗", fb.denied);
       }
       var officer = fb.officer;
 
@@ -146,9 +137,9 @@
     change.addEventListener("click", function () {
       token = null;
       badges = {};
-      if (window.google && google.accounts) google.accounts.id.disableAutoSelect();
+      S.auth.clear();
       renderTools();
-      showSignin();
+      showSignin("", true);
     });
     replace(who, [el("div", { class: "borrow-who" }, [
       S.avatar(officer.name, profile.picture),
@@ -166,5 +157,8 @@
 
   renderTools();
   if (!API) replace(who, [el("p", { class: "vote-notice is-error", text: "網站尚未設定 Apps Script 網址。" })]);
-  else showSignin();
+  else if (S.auth.get()) {
+    token = S.auth.get();
+    load();
+  } else showSignin();
 })();

@@ -113,12 +113,18 @@
     if (e.status === "closed") {
       return replace(body, e.results ? [results(e)] : [notice("本次投票已截止，結果尚未公布。")]);
     }
+    var saved = S.auth.get();
+    if (saved) {
+      token = saved;
+      return checkStatus();
+    }
     replace(body, [signIn()]);
   }
 
   // ── 登入 ──
 
-  function signIn() {
+  // noPrompt：剛被拒絕（例如用了非學校帳號）時不要自動跳出帳號選擇，避免一直選回同一個帳號。
+  function signIn(noPrompt) {
     var box = el("div", { class: "vote-signin" }, [
       el("h3", { text: "請登入以進行投票" }),
       el("p", { text: "請以學校 Google 帳號（s學號@student.szmc.edu.tw）登入。系統將依學號確認投票資格，每人限投一次。" }),
@@ -126,23 +132,13 @@
       el("div", { class: "signin-button", id: "vote-signin-button" }),
       el("p", { class: "vote-signin-tip", text: "若無法登入，請改以 Chrome 或 Safari 開啟本頁面。" })
     ]);
-    setTimeout(function () { setupGoogle(box.querySelector("#vote-signin-button")); }, 0);
+    setTimeout(function () { setupGoogle(box.querySelector("#vote-signin-button"), noPrompt); }, 0);
     return box;
   }
 
-  function setupGoogle(target) {
-    if (!window.google || !google.accounts) {
-      setTimeout(function () { setupGoogle(target); }, 200);
-      return;
-    }
-    google.accounts.id.initialize({
-      client_id: S.config.googleClientId,
-      callback: function (response) { token = response.credential; checkStatus(); },
-      use_fedcm_for_prompt: true
-    });
-    google.accounts.id.renderButton(target, {
-      theme: "filled_black", size: "large", shape: "rectangular", text: "signin_with", locale: "zh-TW", width: 280
-    });
+  // 登入由 site.js 的 S.auth 統一處理，換頁或重新整理都會沿用同一個登入。
+  function setupGoogle(target, noPrompt) {
+    S.auth.button(target, function (credential) { token = credential; checkStatus(); }, { prompt: !noPrompt });
   }
 
   function checkStatus() {
@@ -151,13 +147,17 @@
     post({ action: "voteStatus", event: current.id }).then(function (res) {
       if (!res.ok) {
         token = null;
-        return replace(body, [notice(res.error, "error"), signIn()]);
+        if (res.auth && !res.denied) {
+          S.auth.forget(); // 登入過期：讓 Google 自動重新登入
+          return replace(body, [notice(res.error, "error"), signIn()]);
+        }
+        return replace(body, [notice(res.error, "error"), signIn(true)]);
       }
       if (!res.eligible) return replace(body, [notice("此帳號（學號 " + res.id + "）不具本次投票資格。投票資格限本科在學會員，如有疑義，請洽應用英語科學會。", "error")]);
       if (res.voted) return replace(body, [notice("此帳號（學號 " + res.id + "）已完成本次投票，感謝您的參與。", "ok")]);
       replace(body, [ballot(res)]);
     }).catch(function () {
-      replace(body, [notice("系統連線失敗，請稍後再試。", "error"), signIn()]);
+      replace(body, [notice("系統連線失敗，請稍後再試。", "error"), signIn(true)]);
     });
   }
 
@@ -170,8 +170,8 @@
     var change = el("button", { class: "text-button borrow-switch", type: "button", text: "換帳號" });
     change.addEventListener("click", function () {
       token = null;
-      if (window.google && google.accounts) google.accounts.id.disableAutoSelect();
-      replace(view.querySelector(".vote-body"), [signIn()]);
+      S.auth.clear();
+      replace(view.querySelector(".vote-body"), [signIn(true)]);
     });
     return el("div", { class: "borrow-who" }, [
       S.avatar(name, profile.picture),

@@ -27,7 +27,8 @@
     }).then(function (res) { return res.json(); }).then(function (data) {
       if (data.auth || data.denied) {
         token = null;
-        showSignin(data.error);
+        if (!data.denied) S.auth.forget(); // 登入過期：讓 Google 自動重新登入
+        showSignin(data.error, data.denied);
         throw Object.assign(new Error(data.error), { handled: true });
       }
       if (!data.ok) throw new Error(data.error || "系統處理失敗");
@@ -52,7 +53,8 @@
 
   // ── 登入 ──
 
-  function showSignin(message) {
+  // noPrompt：剛被拒絕或換帳號時，不要自動跳出帳號選擇。
+  function showSignin(message, noPrompt) {
     var box = el("div", { class: "vote-signin" }, [
       el("h3", { text: "請登入以申請或審核" }),
       el("p", { text: "申請借用請以學校 Google 帳號（s學號@student.szmc.edu.tw）登入；幹部請以登記於幹部名單之帳號登入審核。" }),
@@ -60,22 +62,12 @@
       el("p", { class: "vote-signin-tip", text: "若無法登入，請改以 Chrome 或 Safari 開啟本頁面。" })
     ]);
     replace(app, [message ? notice(message, "error") : null, box]);
-    setupGoogle(box.querySelector("#borrow-signin-button"));
+    setupGoogle(box.querySelector("#borrow-signin-button"), noPrompt);
   }
 
-  function setupGoogle(target) {
-    if (!window.google || !google.accounts) {
-      setTimeout(function () { setupGoogle(target); }, 200);
-      return;
-    }
-    google.accounts.id.initialize({
-      client_id: S.config.googleClientId,
-      callback: function (response) { token = response.credential; start(); },
-      use_fedcm_for_prompt: true
-    });
-    google.accounts.id.renderButton(target, {
-      theme: "filled_black", size: "large", shape: "rectangular", text: "signin_with", locale: "zh-TW", width: 280
-    });
+  // 登入由 site.js 的 S.auth 統一處理，換頁或重新整理都會沿用同一個登入。
+  function setupGoogle(target, noPrompt) {
+    S.auth.button(target, function (credential) { token = credential; start(); }, { prompt: !noPrompt });
   }
 
   function start() {
@@ -98,8 +90,8 @@
     change.addEventListener("click", function () {
       token = null;
       who = null;
-      if (window.google && google.accounts) google.accounts.id.disableAutoSelect();
-      showSignin();
+      S.auth.clear();
+      showSignin("", true);
     });
     return el("div", { class: "borrow-who" }, [
       S.avatar(name, S.googleProfile(token).picture),
@@ -412,5 +404,8 @@
   }
 
   if (!API) replace(app, [S.statusMessage("網站尚未設定 Apps Script 網址。")]);
-  else showSignin("");
+  else if (S.auth.get()) {
+    token = S.auth.get();
+    start();
+  } else showSignin("");
 })();

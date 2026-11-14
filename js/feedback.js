@@ -177,7 +177,7 @@
 
   var admin = { items: [], officer: null, dept: "mine", status: "pending" };
 
-  function showSignin(message) {
+  function showSignin(message, noPrompt) {
     var box = el("div", { class: "vote-signin" }, [
       el("h3", { text: "幹部登入" }),
       el("p", { text: "請以登記於幹部名單之 Google 帳號登入，以查看及回覆意見反映。" }),
@@ -189,22 +189,12 @@
       box,
       el("p", { class: "fb-admin-link" }, [el("a", { href: "feedback.html", text: "← 返回進度查詢" })])
     ]);
-    setupGoogle(box.querySelector("#fb-signin-button"));
+    setupGoogle(box.querySelector("#fb-signin-button"), noPrompt);
   }
 
-  function setupGoogle(target) {
-    if (!window.google || !google.accounts) {
-      setTimeout(function () { setupGoogle(target); }, 200);
-      return;
-    }
-    google.accounts.id.initialize({
-      client_id: S.config.googleClientId,
-      callback: function (response) { token = response.credential; loadAdmin(); },
-      use_fedcm_for_prompt: true
-    });
-    google.accounts.id.renderButton(target, {
-      theme: "filled_black", size: "large", shape: "rectangular", text: "signin_with", locale: "zh-TW", width: 280
-    });
+  // 登入由 site.js 的 S.auth 統一處理，換頁或重新整理都會沿用同一個登入。
+  function setupGoogle(target, noPrompt) {
+    S.auth.button(target, function (credential) { token = credential; loadAdmin(); }, { prompt: !noPrompt });
   }
 
   function loadAdmin() {
@@ -212,7 +202,8 @@
     post({ action: "feedbackList" }).then(function (res) {
       if (res.auth || res.denied) {
         token = null;
-        return showSignin(res.error);
+        if (!res.denied) S.auth.forget(); // 登入過期：讓 Google 自動重新登入
+        return showSignin(res.error, res.denied);
       }
       if (!res.ok) throw new Error(res.error);
       admin.items = res.items;
@@ -230,8 +221,8 @@
     var change = el("button", { class: "text-button borrow-switch", type: "button", text: "換帳號" });
     change.addEventListener("click", function () {
       token = null;
-      if (window.google && google.accounts) google.accounts.id.disableAutoSelect();
-      showSignin();
+      S.auth.clear();
+      showSignin("", true);
     });
     return el("div", { class: "borrow-who" }, [
       S.avatar(o.name, profile.picture),
@@ -356,6 +347,11 @@
   // ── 進入點 ──
 
   if (!API) replace(app, [notice("網站尚未設定 Apps Script 網址。", "error")]);
-  else if (params.get("admin")) showSignin();
+  else if (params.get("admin")) {
+    if (S.auth.get()) {
+      token = S.auth.get();
+      loadAdmin();
+    } else showSignin();
+  }
   else showLookup(params.get("no") || "");
 })();
