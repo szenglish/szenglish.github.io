@@ -19,7 +19,8 @@
     { label: "意見進度查詢", href: "feedback.html", page: "feedback", footerOnly: true },
     { label: "友站連結", href: "links.html", page: "links", footerOnly: true },
     { label: "聯絡我們", href: "contact.html", page: "contact" },
-    { label: "隱私權政策", href: "privacy.html", page: "privacy", footerOnly: true }
+    { label: "隱私權政策", href: "privacy.html", page: "privacy", footerOnly: true },
+    { label: "幹部專區", href: "officer.html", page: "officer", footerOnly: true }
   ];
 
   function icon(shapes) {
