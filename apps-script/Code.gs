@@ -99,7 +99,7 @@ function json(data) {
 // 幹部登入後在網站回覆，回覆會寄信通知學生。對話內容存在「意見回覆」分頁。
 
 var FEEDBACK_MAX_LENGTH = 2000;
-var FEEDBACK_DEPTS = ["不指定", "正副會長", "秘書處", "財務部", "企劃部", "廣宣部"];
+var FEEDBACK_DEPTS = ["不指定", "正副會長", "秘書處", "財務部", "企劃部", "廣宣部", "器材部"];
 var FEEDBACK = { received: "已收到", working: "處理中", replied: "已回覆", closed: "已結案" };
 var FEEDBACK_HIDE_DAYS = 30;
 var FEEDBACK_URL = "https://szenglish.github.io/feedback.html";
