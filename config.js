@@ -1,7 +1,7 @@
 // 網站設定。部署 Apps Script 後，把網址貼到 feedbackUrl 和 paycheckUrl（兩個通常是同一個網址）。
 window.SZAE_CONFIG = {
-  feedbackUrl: "",
-  paycheckUrl: "",
+  feedbackUrl: "https://script.google.com/macros/s/AKfycbwgWNb-LkTof421wxrirbWd64TMy1TLJsMblG1ZdbP3btlby0RkaCuA6OPGZ4gqMaPsnQ/exec",
+  paycheckUrl: "https://script.google.com/macros/s/AKfycbwgWNb-LkTof421wxrirbWd64TMy1TLJsMblG1ZdbP3btlby0RkaCuA6OPGZ4gqMaPsnQ/exec",
   // 幹部收費頁的 Google 登入用戶端 ID，和 Code.gs 的 GOOGLE_CLIENT_ID 相同。
   googleClientId: "938430486759-qsugaooebsk4i55q8k0946n68me4gus6.apps.googleusercontent.com",
   term: "第十五屆",
