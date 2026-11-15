@@ -1,0 +1,5 @@
+User-agent: *
+Disallow: /admin/
+Disallow: /apps-script/
+
+Sitemap: https://szenglish.github.io/sitemap.xml
