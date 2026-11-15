@@ -681,13 +681,13 @@
 
     function resultCard(id, result) {
       if (!result.found) {
-        return notice("找不到學號 " + id + " 的資料", "請確認學號是否正確。如果已經繳費，請聯絡科學會幹部協助確認。");
+        return notice("查無學號 " + id + " 之資料", "請確認學號是否輸入正確。如已繳納會費，請聯絡本會幹部協助查核。");
       }
       return el("div", { class: "paycheck-card " + (result.paid ? "is-paid" : "is-unpaid") }, [
         el("div", { class: "paycheck-card-head" }, [
           el("div", {}, [
             el("p", { class: "paycheck-card-id", text: id }),
-            el("p", { class: "paycheck-card-name", text: result.name || "（未登記姓名）" })
+            el("p", { class: "paycheck-card-name", text: result.name || "（姓名未登記）" })
           ]),
           statusChip(result.paid)
         ]),
@@ -697,8 +697,8 @@
           detail("經手人", result.handler)
         ]),
         result.paid ? null : el("p", { class: "paycheck-card-text", text: result.graduated
-          ? "還沒有繳費紀錄。依學號推算你已經畢業，如有疑問請聯絡科學會幹部。"
-          : "還沒有繳費紀錄。會費入會時繳一次，五年有效。請攜帶會費到科學會辦公室（A717）繳交，或洽詢收費的幹部。" })
+          ? "系統查無繳費紀錄。依學號推算，您已屆畢業年限；如有疑問，請聯絡本會幹部。"
+          : "系統查無繳費紀錄。會費於入會時繳納一次，效期五年。請至本會辦公室（A717）或向收費幹部辦理繳費。" })
       ]);
     }
 
@@ -725,7 +725,7 @@
         return;
       }
       if (!S.config.paycheckUrl) {
-        replace(target, [notice("尚未連接試算表", "試作版還沒有設定 paycheckUrl，暫時無法查詢。")]);
+        replace(target, [notice("系統尚未啟用", "查詢服務尚未完成設定，暫時無法使用。")]);
         return;
       }
 
@@ -748,7 +748,7 @@
         }
       }).catch(function (err) {
         console.error("會費查詢失敗", err);
-        replace(target, [notice("查詢時發生錯誤", "請稍後再試，或寄信到 " + S.config.email + "。")]);
+        replace(target, [notice("系統連線失敗", "目前無法完成查詢，請稍後再試；如問題持續，請來信 " + S.config.email + "。")]);
       }).then(function () {
         submit.disabled = false;
         submit.textContent = "查詢";
