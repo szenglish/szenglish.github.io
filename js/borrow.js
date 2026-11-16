@@ -108,7 +108,7 @@
     if (rules && who.officer) rules.open = false;
     var parts = [whoCard()];
     if (who.officer) parts.push(reviewSection());
-    if (who.student) parts.push(applySection(), mineSection());
+    if (who.student) parts.push(mineSection(), applySection());
     replace(app, parts);
   }
 
@@ -405,50 +405,130 @@
     var minDay = isoDay(noticeDays);
     var form = el("form", { class: "borrow-form", novalidate: "" });
     var fields = {
-      name: el("input", { type: "text", maxlength: "30", value: who.student.name || "", autocomplete: "name" }),
-      unit: el("input", { type: "text", maxlength: "50", placeholder: "例如 應英科學會、3E1、英語話劇社" }),
-      phone: el("input", { type: "tel", maxlength: "30", inputmode: "tel", placeholder: "例如 0912-345-678", autocomplete: "tel" }),
-      start: el("input", { type: "date", min: minDay }),
-      end: el("input", { type: "date", min: minDay }),
-      purpose: el("textarea", { rows: "3", maxlength: "500" }),
-      place: el("input", { type: "text", maxlength: "100", placeholder: "例如 A301 教室" })
+      start: el("input", { type: "date", min: minDay, id: "bf-start" }),
+      end: el("input", { type: "date", min: minDay, id: "bf-end" }),
+      name: el("input", { type: "text", maxlength: "30", value: who.student.name || "", autocomplete: "name", id: "bf-name" }),
+      unit: el("input", { type: "text", maxlength: "50", placeholder: "例如 應英科學會、3E1、英語話劇社", id: "bf-unit" }),
+      phone: el("input", { type: "tel", maxlength: "30", inputmode: "tel", placeholder: "例如 0912-345-678", autocomplete: "tel", id: "bf-phone" }),
+      place: el("input", { type: "text", maxlength: "100", placeholder: "例如 A301 教室", id: "bf-place" }),
+      purpose: el("textarea", { rows: "3", maxlength: "500", placeholder: "例如 班會活動使用", id: "bf-purpose" })
     };
-    var itemsBox = el("div", { class: "borrow-items" }, [el("p", { class: "borrow-hint", text: "選擇借用期間後，系統將顯示該期間各項器材之可借數量。" })]);
+    var errors = {};
+    var itemsBox = el("div", { class: "borrow-picker", id: "bf-items", tabindex: "-1" }, [
+      el("p", { class: "borrow-hint", text: "請先選擇借用期間，系統將顯示該期間各項器材之可借數量。" })
+    ]);
+    var picked = el("p", { class: "borrow-picked", "aria-live": "polite" });
     var message = el("p", { class: "form-message", role: "status" });
     var submit = el("button", { class: "button button-navy", type: "submit", text: "送出申請" });
     var quantities = {};
+    var units = {};
+    var tried = false;
 
-    function field(label, input, required) {
-      return el("div", { class: "field" }, [el("label", {}, [document.createTextNode(label), required ? el("span", { "aria-hidden": "true", text: " *" }) : null]), input]);
+    // 每個欄位下方都有自己的錯誤訊息，送出時一次標出所有問題。
+    function field(label, key, input, hint) {
+      var error = el("p", { class: "field-error", id: "bf-" + key + "-error", hidden: "" });
+      errors[key] = error;
+      if (input) input.setAttribute("aria-describedby", error.id);
+      return el("div", { class: "field" }, [
+        el("label", { for: input ? input.id : "bf-items" }, [document.createTextNode(label), el("span", { class: "field-required", "aria-hidden": "true", text: " *" })]),
+        input || itemsBox,
+        hint ? el("p", { class: "borrow-hint", text: hint }) : null,
+        error
+      ]);
+    }
+
+    function step(no, title, children) {
+      return el("fieldset", { class: "borrow-step-group" }, [
+        el("legend", {}, [el("span", { class: "borrow-step-no", text: String(no) }), document.createTextNode(title)])
+      ].concat(children));
+    }
+
+    function chosen() {
+      return Object.keys(quantities).filter(function (k) { return quantities[k] > 0; });
+    }
+
+    function drawPicked() {
+      var list = chosen();
+      picked.textContent = list.length
+        ? "已選擇：" + list.map(function (k) { return k + " × " + quantities[k] + " " + (units[k] || ""); }).join("、")
+        : "";
+    }
+
+    function check() {
+      var v = {
+        start: fields.start.value, end: fields.end.value,
+        name: fields.name.value.trim(), unit: fields.unit.value.trim(), phone: fields.phone.value.trim(),
+        place: fields.place.value.trim(), purpose: fields.purpose.value.trim()
+      };
+      var problems = {};
+      if (!v.start) problems.start = "請選擇開始日期。";
+      else if (v.start < minDay) problems.start = "須於借用日 " + noticeDays + " 天前申請，最早可選 " + minDay.replace(/-/g, "/") + "。";
+      if (!v.end) problems.end = "請選擇結束日期。";
+      else if (v.start && v.end < v.start) problems.end = "結束日期不得早於開始日期。";
+      if (v.start && v.end && !problems.start && !problems.end && !chosen().length) problems.items = "請至少選擇一項器材。";
+      if (!v.name) problems.name = "請填寫借用人姓名。";
+      if (!v.unit) problems.unit = "請填寫借用單位。";
+      if (!v.phone) problems.phone = "請填寫聯絡電話。";
+      else if (!/^[0-9+\-\s()#]{8,}$/.test(v.phone)) problems.phone = "請輸入正確的電話號碼，例如 0912-345-678。";
+      if (!v.place) problems.place = "請填寫使用地點。";
+      if (!v.purpose) problems.purpose = "請填寫用途說明。";
+      Object.keys(errors).forEach(function (key) {
+        var text = problems[key];
+        errors[key].textContent = text || "";
+        errors[key].hidden = !text;
+        var input = fields[key] || itemsBox;
+        if (text) input.setAttribute("aria-invalid", "true"); else input.removeAttribute("aria-invalid");
+      });
+      return problems;
+    }
+
+    // 第一次送出後，修改欄位時即時更新錯誤訊息。
+    Object.keys(fields).forEach(function (key) {
+      fields[key].addEventListener(key === "start" || key === "end" ? "change" : "blur", function () { if (tried) check(); });
+    });
+
+    function stepper(item, left) {
+      var value = el("output", { class: "borrow-qty-value", "aria-live": "polite", text: "0" });
+      var minus = el("button", { class: "borrow-qty-btn", type: "button", "aria-label": "減少" + item.name, text: "−" });
+      var plus = el("button", { class: "borrow-qty-btn", type: "button", "aria-label": "增加" + item.name, text: "+" });
+      function set(n) {
+        n = Math.max(0, Math.min(left, n));
+        quantities[item.name] = n;
+        value.textContent = String(n);
+        minus.disabled = n <= 0;
+        plus.disabled = n >= left;
+        row.classList.toggle("is-picked", n > 0);
+        drawPicked();
+        if (tried) check();
+      }
+      minus.addEventListener("click", function () { set((quantities[item.name] || 0) - 1); });
+      plus.addEventListener("click", function () { set((quantities[item.name] || 0) + 1); });
+      var row = el("div", { class: "borrow-item" + (left ? "" : " is-out") }, [
+        el("div", {}, [
+          el("p", { class: "borrow-item-name", text: item.name }),
+          el("p", { class: "borrow-item-meta", text: left ? "可借 " + left + " " + item.unit + (item.note ? "・" + item.note : "") : "本期間已無可借數量" })
+        ]),
+        left ? el("div", { class: "borrow-qty", role: "group", "aria-label": item.name + " 數量" }, [minus, value, plus]) : null
+      ]);
+      set(0);
+      return row;
     }
 
     function loadItems() {
       var s = fields.start.value;
       var e = fields.end.value;
-      if (!s || !e) return;
-      if (e < s) {
-        replace(itemsBox, [el("p", { class: "borrow-hint is-error", text: "結束日期不得早於開始日期。" })]);
+      quantities = {};
+      drawPicked();
+      if (!s || !e || e < s) {
+        replace(itemsBox, [el("p", { class: "borrow-hint", text: "請先選擇借用期間，系統將顯示該期間各項器材之可借數量。" })]);
         return;
       }
       replace(itemsBox, [S.statusMessage("正在查詢可借數量…")]);
       equipment(s, e).then(function (data) {
         if (!data.ok) throw new Error(data.error);
-        quantities = {};
+        data.items.forEach(function (item) { units[item.name] = item.unit; });
         replace(itemsBox, data.items.length ? data.items.map(function (item) {
-          var left = Math.max(item.available, 0);
-          var qty = el("input", { type: "number", min: "0", max: String(left), value: "0", inputmode: "numeric", "aria-label": item.name + " 數量" });
-          if (!left) qty.disabled = true;
-          qty.addEventListener("input", function () {
-            var n = Math.max(0, Math.min(left, Math.floor(Number(qty.value) || 0)));
-            quantities[item.name] = n;
-          });
-          return el("div", { class: "borrow-item" + (left ? "" : " is-out") }, [
-            el("div", {}, [
-              el("p", { class: "borrow-item-name", text: item.name }),
-              el("p", { class: "borrow-item-meta", text: left ? "可借 " + left + " " + item.unit + (item.note ? "・" + item.note : "") : "本期間已無可借數量" })
-            ]),
-            qty
-          ]);
+          return stepper(item, Math.max(item.available, 0));
         }) : [el("p", { class: "borrow-hint", text: "器材清單尚未建立，請洽器材長。" })]);
       }).catch(function (err) {
         replace(itemsBox, [el("p", { class: "borrow-hint is-error", text: "讀取失敗：" + err.message })]);
@@ -464,11 +544,22 @@
 
     form.addEventListener("submit", function (event) {
       event.preventDefault();
-      var items = Object.keys(quantities).filter(function (k) { return quantities[k] > 0; })
-        .map(function (k) { return { name: k, qty: quantities[k] }; });
-      submit.disabled = true;
-      submit.textContent = "送出中…";
+      tried = true;
       message.textContent = "";
+      var problems = check();
+      var first = ["start", "end", "items", "name", "unit", "phone", "place", "purpose"].filter(function (k) { return problems[k]; })[0];
+      if (first) {
+        var target = fields[first] || itemsBox;
+        target.scrollIntoView({ block: "center", behavior: "smooth" });
+        target.focus({ preventScroll: true });
+        message.className = "form-message is-error";
+        message.textContent = "尚有 " + Object.keys(problems).length + " 個欄位需要修正。";
+        return;
+      }
+      var items = chosen().map(function (k) { return { name: k, qty: quantities[k] }; });
+      submit.disabled = true;
+      submit.classList.add("is-busy");
+      submit.textContent = "送出中…";
       post({
         action: "borrowSubmit", name: fields.name.value, unit: fields.unit.value, phone: fields.phone.value,
         start: fields.start.value, end: fields.end.value, items: items,
@@ -476,9 +567,10 @@
       }).then(function (res) {
         render();
         app.insertBefore(notice("申請已送出（申請編號 " + res.no + "），審核結果將寄至您的學校信箱。", "ok"), app.children[1]);
-        window.scrollTo({ top: app.offsetTop - 80 });
+        window.scrollTo({ top: app.offsetTop - 80, behavior: "smooth" });
       }).catch(function (err) {
         submit.disabled = false;
+        submit.classList.remove("is-busy");
         submit.textContent = "送出申請";
         if (err.handled) return;
         message.className = "form-message is-error";
@@ -487,22 +579,25 @@
     });
 
     replace(form, [
-      el("div", { class: "borrow-grid" }, [
-        field("借用人", fields.name, true),
-        field("借用單位", fields.unit, true),
-        field("聯絡電話", fields.phone, true),
-        field("使用地點", fields.place, true),
-        field("開始日期", fields.start, true),
-        field("結束日期", fields.end, true)
+      step(1, "借用期間", [el("div", { class: "borrow-grid" }, [
+        field("開始日期", "start", fields.start),
+        field("結束日期", "end", fields.end)
+      ])]),
+      step(2, "借用器材", [field("器材與數量", "items", null), picked]),
+      step(3, "申請資料", [
+        el("div", { class: "borrow-grid" }, [
+          field("借用人", "name", fields.name),
+          field("借用單位", "unit", fields.unit),
+          field("聯絡電話", "phone", fields.phone),
+          field("使用地點", "place", fields.place)
+        ]),
+        field("用途說明", "purpose", fields.purpose)
       ]),
-      el("div", { class: "field" }, [el("label", { text: "借用物品 *" }), itemsBox]),
-      field("用途說明", fields.purpose, true),
-      submit,
-      message
+      el("div", { class: "borrow-submit" }, [submit, message])
     ]);
     return el("section", { class: "borrow-section" }, [
       el("h2", { text: "填寫借用申請" }),
-      el("p", { class: "borrow-hint", text: "依規定須於借用日 3 天前提出申請，可申請 " + minDay.replace(/-/g, "/") + " 起之借用。" }),
+      el("p", { class: "borrow-hint", text: "依規定須於借用日 3 天前提出申請，可申請 " + minDay.replace(/-/g, "/") + " 起之借用。標示 * 者為必填。" }),
       form
     ]);
   }
@@ -511,29 +606,41 @@
 
   function mineSection() {
     var box = el("div", { class: "borrow-list" }, [S.statusMessage("讀取中…")]);
-    function load() {
-      post({ action: "borrowMine" }).then(function (data) {
-        replace(box, data.items.length ? data.items.map(function (r) {
-          var actions = [];
-          if (r.status === "待器材長審核" || r.status === "待會長審核") {
-            actions.push(panelButton("取消申請", "text", {
-              text: "確定取消申請 " + r.no + "？取消後無法復原，如需借用須重新申請。",
-              confirm: "確認取消", busy: "取消中…", danger: true,
-              submit: function () {
-                return post({ action: "borrowCancel", no: r.no }).then(load).then(function () {
-                  toast("ok", "已取消申請 " + r.no);
-                });
-              }
-            }));
+    function card(r) {
+      var actions = [];
+      if (r.status === "待器材長審核" || r.status === "待會長審核") {
+        actions.push(panelButton("取消申請", "text", {
+          text: "確定取消申請 " + r.no + "？取消後無法復原，如需借用須重新申請。",
+          confirm: "確認取消", busy: "取消中…", danger: true,
+          submit: function () {
+            return post({ action: "borrowCancel", no: r.no }).then(load).then(function () {
+              toast("ok", "已取消申請 " + r.no);
+            });
           }
-          return requestCard(r, actions);
-        }) : [S.statusMessage("目前無申請紀錄。")]);
+        }));
+      }
+      return requestCard(r, actions);
+    }
+
+    // 進行中的申請直接列出；已結案的收進「歷史紀錄」，避免把申請表單擠到很下面。
+    function load() {
+      return post({ action: "borrowMine" }).then(function (data) {
+        var done = ["已歸還", "已退回", "已取消"];
+        var open = data.items.filter(function (r) { return done.indexOf(r.status) < 0; });
+        var closed = data.items.filter(function (r) { return done.indexOf(r.status) >= 0; });
+        var history = closed.length ? el("details", { class: "borrow-history" }, [
+          el("summary", { text: "歷史紀錄（" + closed.length + " 筆已結案）" }),
+          el("div", { class: "borrow-list" }, closed.map(card))
+        ]) : null;
+        replace(box, open.map(card).concat(open.length ? [] : [S.statusMessage("目前無進行中之申請。")], [history]));
+        section.hidden = !data.items.length;
       }).catch(function (err) {
         if (!err.handled) replace(box, [S.statusMessage("讀取失敗：" + err.message)]);
       });
     }
+    var section = el("section", { class: "borrow-section" }, [el("h2", { text: "我的申請" }), box]);
     load();
-    return el("section", { class: "borrow-section" }, [el("h2", { text: "我的申請" }), box]);
+    return section;
   }
 
   if (!API) replace(app, [S.statusMessage("網站尚未設定 Apps Script 網址。")]);

@@ -2633,7 +2633,41 @@ html:has(.sub-nav) { scroll-padding-top: 150px; }
 
 .borrow-item-meta { color: var(--muted); font-size: 14px; }
 
-.borrow-item input[type="number"] { flex: none; width: 84px; text-align: center; }
+/* 申請表單：分三步驟 */
+.borrow-step-group { margin: 0; padding: 0; border: 0; min-width: 0; }
+.borrow-step-group + .borrow-step-group { margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--rule); }
+.borrow-step-group legend { float: left; width: 100%; display: flex; align-items: center; gap: 10px; padding: 0; margin-bottom: 14px; color: var(--navy); font-size: 18px; font-weight: 900; }
+.borrow-step-group legend + * { clear: both; }
+.borrow-step-no { display: inline-grid; place-items: center; width: 28px; height: 28px; background: var(--navy); color: var(--white); font-size: 15px; border-radius: 50%; }
+.borrow-form .borrow-step-group .field:first-child,
+.borrow-form .borrow-grid .field:nth-child(-n + 2) { margin-top: 0; }
+.field-required { color: var(--red); }
+.borrow-form [aria-invalid="true"] { border-color: var(--red) !important; background: #fff7f7; }
+.borrow-picker { display: grid; gap: 6px; }
+.borrow-picker:focus { outline: none; }
+.borrow-picker[aria-invalid="true"] { padding: 6px; outline: 2px solid var(--red); }
+.borrow-item.is-picked { border-color: var(--navy); box-shadow: inset 4px 0 0 var(--navy); }
+.borrow-qty { flex: none; display: flex; align-items: center; border: 1px solid var(--rule); }
+.borrow-qty-btn { width: 44px; height: 44px; background: var(--white); border: 0; color: var(--navy); font-size: 22px; font-weight: 700; line-height: 1; cursor: pointer; touch-action: manipulation; }
+.borrow-qty-btn:hover:not(:disabled) { background: var(--mist); }
+.borrow-qty-btn:disabled { color: var(--rule); cursor: not-allowed; }
+.borrow-qty-btn:focus-visible { outline: 2px solid var(--navy); outline-offset: -2px; }
+.borrow-qty-value { min-width: 36px; color: var(--navy); font-size: 18px; font-weight: 900; text-align: center; font-variant-numeric: tabular-nums; }
+.borrow-picked { margin-top: 10px; color: var(--navy); font-weight: 700; }
+.borrow-picked:empty { display: none; }
+.borrow-history { margin-top: 4px; }
+.borrow-history summary { display: flex; align-items: center; min-height: 44px; padding: 0 14px; background: var(--mist); color: var(--navy); font-weight: 700; cursor: pointer; }
+.borrow-history summary:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+.borrow-history[open] summary { margin-bottom: 12px; }
+.borrow-submit { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--rule); }
+.borrow-submit .button { min-height: 48px; padding: 0 28px; border: 0; font-family: inherit; cursor: pointer; }
+.borrow-submit .button:disabled { opacity: .7; cursor: wait; }
+.borrow-submit .button.is-busy { display: inline-flex; align-items: center; gap: 8px; }
+.borrow-submit .button.is-busy::before {
+  content: ""; width: 16px; height: 16px;
+  border: 2px solid rgba(255, 255, 255, .45); border-top-color: #fff; border-radius: 50%;
+  animation: borrow-spin .8s linear infinite;
+}
 
 .borrow-item.is-out { opacity: .55; }
 
