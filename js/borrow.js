@@ -179,16 +179,53 @@
     ]);
   }
 
-  function actionButton(label, kind, run) {
+  // 操作按鈕：run(begin) 先做確認或填備註，真的要送出時呼叫 begin()，
+  // 整張卡片進入「處理中」狀態，避免重複點擊，也讓使用者知道系統正在處理。
+  function actionButton(label, kind, busyText, run) {
     var button = el("button", { class: kind === "primary" ? "button button-navy" : "text-button", type: "button", text: label });
     button.addEventListener("click", function () {
-      button.disabled = true;
-      run().catch(function (err) {
-        button.disabled = false;
-        if (!err.handled) alert(err.message);
+      var card = button.closest(".borrow-card");
+      var buttons = card ? card.querySelectorAll(".borrow-actions button") : [button];
+      function setBusy(on) {
+        [].forEach.call(buttons, function (b) { b.disabled = on; });
+        button.textContent = on ? busyText : label;
+        button.classList.toggle("is-busy", on);
+        if (card) {
+          card.classList.toggle("is-busy", on);
+          if (on) card.setAttribute("aria-busy", "true"); else card.removeAttribute("aria-busy");
+        }
+      }
+      var started = false;
+      Promise.resolve(run(function () { started = true; setBusy(true); })).catch(function (err) {
+        if (started) setBusy(false);
+        if (!err.handled) toast("error", "處理失敗", err.message);
       });
     });
     return button;
+  }
+
+  // 畫面底部的提示訊息，數秒後自動消失。
+  var toastBox = null;
+  function toast(kind, text, sub) {
+    if (!toastBox) {
+      toastBox = el("div", { class: "borrow-toasts", "aria-live": "polite" });
+      document.body.appendChild(toastBox);
+    }
+    var box = el("div", { class: "collect-toast is-" + kind, role: kind === "error" ? "alert" : "status" });
+    var close = el("button", { class: "collect-toast-close", type: "button", "aria-label": "關閉", text: "×" });
+    function remove() { if (box.parentNode) box.parentNode.removeChild(box); }
+    close.addEventListener("click", remove);
+    replace(box, [
+      el("div", { class: "collect-toast-body" }, [
+        el("p", { class: "collect-toast-text", text: text }),
+        sub ? el("p", { class: "collect-toast-sub", text: sub }) : null
+      ]),
+      el("span", { class: "collect-toast-timer", style: "animation-duration:6s" }),
+      close
+    ]);
+    toastBox.appendChild(box);
+    while (toastBox.children.length > 3) toastBox.removeChild(toastBox.firstChild);
+    setTimeout(remove, 6000);
   }
 
   // ── 幹部：審核清單 ──
@@ -226,34 +263,50 @@
       });
     }
 
-    function act(r, body) {
+    // 完成後重新讀取清單，並提示結果；卡片可能因狀態改變而移出目前的篩選。
+    function act(r, body, done) {
       body.action = "borrowAct";
       body.no = r.no;
-      return post(body).then(load);
+      return post(body).then(function () {
+        return load().then(function () {
+          var moved = mode === "mine" && !items.some(function (x) { return x.no === r.no && mineToAct(x); });
+          toast("ok", done(r), moved ? "本申請已移至「進行中」或「全部」清單。" : "");
+        });
+      });
     }
 
     function officerActions(r) {
       var list = [];
       var canReview = (r.status === "待器材長審核" && who.roles.equip) || (r.status === "待會長審核" && who.roles.president);
       if (canReview) {
-        list.push(actionButton("同意", "primary", function () { return act(r, { act: "approve" }); }));
-        list.push(actionButton("退回", "text", function () {
+        list.push(actionButton("同意", "primary", "審核中…", function (begin) {
+          begin();
+          return act(r, { act: "approve" }, function () {
+            return r.status === "待器材長審核" && !who.roles.president
+              ? "已同意 " + r.no + "，已轉送會長核定"
+              : "已核准 " + r.no + "，系統已通知申請人";
+          });
+        }));
+        list.push(actionButton("退回", "text", "退回中…", function (begin) {
           var reason = prompt("請填寫退回 " + r.no + " 之原因：");
-          if (!reason || !reason.trim()) return Promise.resolve();
-          return act(r, { act: "reject", reason: reason.trim() });
+          if (!reason || !reason.trim()) return;
+          begin();
+          return act(r, { act: "reject", reason: reason.trim() }, function () { return "已退回 " + r.no + "，系統已通知申請人"; });
         }));
       }
       if (r.status === "已核准") {
-        list.push(actionButton("登記借出", "primary", function () {
-          if (!confirm("確認已與 " + r.name + " 當面完成器材點交？")) return Promise.resolve();
-          return act(r, { act: "lend" });
+        list.push(actionButton("登記借出", "primary", "登記中…", function (begin) {
+          if (!confirm("確認已與 " + r.name + " 當面完成器材點交？")) return;
+          begin();
+          return act(r, { act: "lend" }, function () { return "已登記借出 " + r.no; });
         }));
       }
       if (r.status === "已借出") {
-        list.push(actionButton("登記歸還", "primary", function () {
+        list.push(actionButton("登記歸還", "primary", "登記中…", function (begin) {
           var note = prompt("歸還驗收備註（器材如有損壞或短缺請註明，無則免填）：", "");
-          if (note === null) return Promise.resolve();
-          return act(r, { act: "return", note: note.trim() });
+          if (note === null) return;
+          begin();
+          return act(r, { act: "return", note: note.trim() }, function () { return "已登記歸還 " + r.no + "，系統已通知申請人"; });
         }));
       }
       return list;
@@ -388,9 +441,12 @@
         replace(box, data.items.length ? data.items.map(function (r) {
           var actions = [];
           if (r.status === "待器材長審核" || r.status === "待會長審核") {
-            actions.push(actionButton("取消申請", "text", function () {
-              if (!confirm("確定取消申請 " + r.no + "？取消後無法復原。")) return Promise.resolve();
-              return post({ action: "borrowCancel", no: r.no }).then(load);
+            actions.push(actionButton("取消申請", "text", "取消中…", function (begin) {
+              if (!confirm("確定取消申請 " + r.no + "？取消後無法復原。")) return;
+              begin();
+              return post({ action: "borrowCancel", no: r.no }).then(load).then(function () {
+                toast("ok", "已取消申請 " + r.no);
+              });
             }));
           }
           return requestCard(r, actions);

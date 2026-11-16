@@ -2706,6 +2706,41 @@ html:has(.sub-nav) { scroll-padding-top: 150px; }
 
 .borrow-actions .button { min-height: 44px; border: 0; font-family: inherit; cursor: pointer; }
 
+/* 處理中：卡片變淡、按鈕顯示轉圈，避免重複點擊。 */
+.borrow-card { transition: opacity .2s ease; }
+.borrow-card.is-busy { opacity: .6; }
+.borrow-card.is-busy .borrow-actions button { cursor: progress; }
+.borrow-actions .button.is-busy { display: inline-flex; align-items: center; gap: 8px; opacity: 1; }
+.borrow-actions .button.is-busy::before {
+  content: "";
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, .45);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: borrow-spin .8s linear infinite;
+}
+.borrow-actions .text-button.is-busy::before { border-color: rgba(32, 39, 47, .25); border-top-color: var(--navy); }
+@keyframes borrow-spin { to { transform: rotate(360deg); } }
+
+.borrow-toasts {
+  position: fixed;
+  right: 12px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+  left: 12px;
+  z-index: 60;
+  display: grid;
+  gap: 8px;
+  max-width: 536px;
+  margin: 0 auto;
+  pointer-events: none;
+}
+.borrow-toasts .collect-toast.is-ok { background: #23633e; }
+
+@media (prefers-reduced-motion: reduce) {
+  .borrow-actions .button.is-busy::before { animation-duration: 2.4s; }
+}
+
 @media (max-width: 640px) {
   .borrow-grid { grid-template-columns: minmax(0, 1fr); }
   .borrow-grid .field:nth-child(2) { margin-top: 18px; }
