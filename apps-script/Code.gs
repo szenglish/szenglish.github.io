@@ -441,7 +441,7 @@ function maskName(name) {
 function handleOfficer(input) {
   try {
     var officer = verifyOfficer(input.token);
-    var actions = { me: officerMe, roster: officerRoster, lookup: officerLookup, pay: officerPay, "void": officerVoid, today: officerToday };
+    var actions = { me: officerMe, roster: officerRoster, lookup: officerLookup, pay: officerPay, "void": officerVoid, today: officerToday, member: officerMember };
     if (!actions[input.action]) throw new Error("不支援此操作");
     return actions[input.action](input, officer);
   } catch (err) {
@@ -540,7 +540,7 @@ function officerPay(input, officer) {
       if (name.length > 30) throw new Error("姓名太長");
       member = { name: name, className: text(input.className).slice(0, 30) };
       getSheet("roster", true).appendRow(rowFor("roster", {
-        "學號": "'" + id, "姓名": safeText(member.name), "班級": safeText(member.className),
+        "學號": "'" + id, "姓名": safeText(member.name), "班級": classText(member.className),
         "入會日期": formatDate(new Date(), "yyyy/MM/dd")
       }));
     }
@@ -556,16 +556,21 @@ function officerPay(input, officer) {
   });
 }
 
+// 作廢（改回未繳費）：用學號找這位同學目前有效的那筆收款。
+// 匯入的名單沒有收據編號，所以不能只靠收據編號找；有給收據編號時再多比對一次，避免作廢到別筆。
 function officerVoid(input, officer) {
+  var id = text(input.id);
   var receipt = text(input.receipt);
   var reason = text(input.reason);
-  if (!receipt) throw new Error("缺少收據編號");
+  if (!id && !receipt) throw new Error("缺少學號");
   if (!reason) throw new Error("請填寫作廢原因");
   return withLock(function () {
-    var settings = readSettings();
-    var target = allPayments().filter(function (p) { return p.receipt === receipt; })[0];
-    if (!target) throw new Error("找不到這張收據");
-    if (target.void) throw new Error("這張收據已經作廢了");
+    var target = allPayments().filter(function (p) {
+      if (p.void) return false;
+      if (id && p.id !== id) return false;
+      return id ? (!receipt || p.receipt === receipt) : p.receipt === receipt;
+    })[0];
+    if (!target) throw new Error(id ? "這位同學目前沒有有效的繳費紀錄" : "找不到這張收據");
     var sheet = getSheet("payments");
     var header = headerOf(sheet);
     sheet.getRange(target.row, header.indexOf("狀態") + 1).setValue(VOID);
@@ -575,10 +580,48 @@ function officerVoid(input, officer) {
   });
 }
 
+// 編輯名冊上的姓名、班級；這位同學有效的收款紀錄姓名一併更新。名冊沒有這個學號時新增一列。
+function officerMember(input, officer) {
+  var id = requireId(input.id);
+  var name = text(input.name);
+  var className = text(input.className);
+  if (!name) throw new Error("請填寫姓名");
+  if (name.length > 30 || className.length > 30) throw new Error("姓名或班級太長");
+  return withLock(function () {
+    var roster = getSheet("roster", true);
+    var header = headerOf(roster);
+    var row = readTable("roster").filter(function (r) { return idOf(r["學號"]) === id; })[0];
+    if (row) {
+      roster.getRange(row._row, header.indexOf("姓名") + 1).setValue(safeText(name));
+      var classCol = header.indexOf("班級") + 1;
+      if (classCol) roster.getRange(row._row, classCol).setValue(classText(className));
+    } else {
+      roster.appendRow(rowFor("roster", {
+        "學號": "'" + id, "姓名": safeText(name), "班級": classText(className),
+        "入會日期": formatDate(new Date(), "yyyy/MM/dd")
+      }));
+    }
+    var payments = getSheet("payments");
+    var payHeader = headerOf(payments);
+    allPayments().forEach(function (p) {
+      if (p.id === id && !p.void && p.name !== name) payments.getRange(p.row, payHeader.indexOf("姓名") + 1).setValue(safeText(name));
+    });
+    CacheService.getScriptCache().remove("snapshot");
+    return { ok: true, id: id, name: name, className: className };
+  });
+}
+
+// 班級像 1E1 會被試算表當成科學記號（1×10¹），前面加 ' 強制存成文字。
+function classText(value) {
+  value = text(value);
+  return value ? "'" + value : "";
+}
+
 function officerToday(input, officer) {
   var settings = readSettings();
   var today = formatDate(new Date(), "yyyy/MM/dd");
-  var items = allPayments().filter(function (p) { return p.date === today; }).reverse();
+  // 只算幹部在收費頁實際收的款（有經手人信箱）；從名單匯入的紀錄不算今天的收款。
+  var items = allPayments().filter(function (p) { return p.date === today && p.email; }).reverse();
   var valid = items.filter(function (p) { return !p.void; });
   var mine = valid.filter(function (p) { return p.email === officer.email; });
   function sum(list) { return list.reduce(function (total, p) { return total + p.amount; }, 0); }

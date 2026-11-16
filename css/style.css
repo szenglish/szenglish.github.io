@@ -1983,6 +1983,25 @@ html:has(.sub-nav) { scroll-padding-top: 150px; }
 
 .collect-again { display: block; width: 100%; margin-top: 8px; }
 
+/* 查詢結果下方的「編輯姓名／班級」「改為未繳費」 */
+.collect-manage {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule);
+}
+.collect-manage .text-button { min-height: 44px; padding: 0 4px; }
+.collect-manage .collect-manage-danger { color: var(--red); }
+.collect-manage-panel {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--rule);
+}
+.collect-manage-panel .collect-new { margin-top: 0; }
+.collect-manage-note { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
+
 .collect-new { margin-top: 8px; }
 
 .collect-new .field { margin-top: 16px; }

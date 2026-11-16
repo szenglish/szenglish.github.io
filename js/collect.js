@@ -13,7 +13,8 @@
   var state = {
     officer: "", year: 0, fee: 0, loaded: false,
     members: {}, paid: {}, pending: {},
-    mode: "id", selected: null
+    mode: "id", selected: null,
+    panel: null // 查詢結果卡片上展開的編輯框：{ id, kind: "edit" | "void", name, className, reason, busy, error }
   };
 
   var $ = function (id) { return document.getElementById(id); };
@@ -255,7 +256,7 @@
 
   function undo(id, receipt, name) {
     var note = toast({ kind: "pending", text: "復原 " + name + "…" });
-    api({ action: "void", receipt: receipt, reason: "按錯復原" }).then(function (res) {
+    api({ action: "void", id: id, receipt: receipt, reason: "按錯復原" }).then(function (res) {
       if (!res.ok) throw new Error(res.error);
       delete state.paid[id];
       note.update({ kind: "info", text: name + " 已復原，這筆不算收款", timeout: 4 });
@@ -285,6 +286,7 @@
   // ── 畫面 ──
 
   function select(id) {
+    if (state.selected !== id) state.panel = null;
     state.selected = id;
     render();
     var focus = result.querySelector("#new-name") || result.querySelector(".collect-pay");
@@ -325,8 +327,131 @@
         ? el("p", { class: "collect-warning", text: "依學號推算已經畢業。延畢的同學一樣可以收款。" })
         : null,
       pay,
+      status === "pending" ? null : manage(id, member, payment),
       state.mode === "scan" ? scanAgainButton() : null
     ]);
+  }
+
+  // ── 編輯資料、改回未繳費 ──
+  // 編輯框的內容存在 state.panel，名冊每分鐘同步重畫時不會被清掉。
+
+  function manage(id, member, payment) {
+    var panel = state.panel && state.panel.id === id ? state.panel : null;
+    if (panel) return panel.kind === "void" ? voidPanel(id, member, payment, panel) : editPanel(id, member, panel);
+    var edit = el("button", { class: "text-button", type: "button", text: "編輯姓名／班級" });
+    edit.addEventListener("click", function () {
+      openPanel({ id: id, kind: "edit", name: member ? member.name : "", className: member ? member.className || "" : "" }, "#manage-name");
+    });
+    var undoPay = null;
+    if (payment) {
+      undoPay = el("button", { class: "text-button collect-manage-danger", type: "button", text: "改為未繳費" });
+      undoPay.addEventListener("click", function () { openPanel({ id: id, kind: "void", reason: "" }, "#manage-reason"); });
+    }
+    return el("div", { class: "collect-manage" }, [edit, undoPay]);
+  }
+
+  function openPanel(panel, focus) {
+    state.panel = panel;
+    render();
+    var input = result.querySelector(focus);
+    if (input) input.focus();
+  }
+
+  function closePanel() {
+    state.panel = null;
+    render();
+  }
+
+  function panelButtons(panel, label, danger) {
+    var ok = el("button", {
+      class: "button " + (danger ? "button-red" : "button-navy") + (panel.busy ? " is-busy" : ""),
+      type: "submit", text: panel.busy ? "處理中…" : label
+    });
+    var cancel = el("button", { class: "text-button", type: "button", text: "取消" });
+    ok.disabled = cancel.disabled = Boolean(panel.busy);
+    cancel.addEventListener("click", closePanel);
+    return el("div", { class: "borrow-panel-actions" }, [ok, cancel]);
+  }
+
+  function panelForm(panel, nodes, submit) {
+    var form = el("form", { class: "borrow-panel collect-manage-panel", novalidate: "" }, nodes.concat([
+      panel.error ? el("p", { class: "field-error", role: "alert", text: panel.error }) : null
+    ]));
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      if (!panel.busy) submit();
+    });
+    form.addEventListener("keydown", function (event) {
+      if (event.key === "Escape" && !panel.busy) closePanel();
+    });
+    return form;
+  }
+
+  function editPanel(id, member, panel) {
+    var name = el("input", { id: "manage-name", type: "text", maxlength: "30", autocomplete: "off" });
+    var className = el("input", { id: "manage-class", type: "text", maxlength: "30", autocomplete: "off", placeholder: "例如 1E1" });
+    name.value = panel.name;
+    className.value = panel.className;
+    name.addEventListener("input", function () { panel.name = name.value; });
+    className.addEventListener("input", function () { panel.className = className.value; });
+    name.disabled = className.disabled = Boolean(panel.busy);
+    return panelForm(panel, [
+      el("p", { class: "borrow-panel-text", text: "編輯名冊資料" }),
+      el("div", { class: "collect-new" }, [
+        el("div", { class: "field" }, [el("label", { for: "manage-name", text: "姓名" }), name]),
+        el("div", { class: "field" }, [el("label", { for: "manage-class", text: "班級" }), className])
+      ]),
+      panelButtons(panel, "儲存", false)
+    ], function () {
+      var newName = panel.name.trim();
+      var newClass = panel.className.trim();
+      if (!newName) { panel.error = "請填寫姓名。"; render(); result.querySelector("#manage-name").focus(); return; }
+      panel.busy = true; panel.error = ""; render();
+      api({ action: "member", id: id, name: newName, className: newClass }).then(function (res) {
+        if (!res.ok) throw new Error(res.error);
+        var m = state.members[id] || { id: id };
+        m.name = res.name;
+        m.className = res.className;
+        state.members[id] = m;
+        state.panel = null;
+        render();
+        toast({ kind: "ok", text: "已更新 " + res.name + " 的資料", sub: id + (res.className ? "・" + res.className : ""), timeout: 5 });
+      }).catch(function (err) {
+        panel.busy = false;
+        panel.error = err.handled ? "" : "儲存失敗：" + err.message;
+        render();
+      });
+    });
+  }
+
+  function voidPanel(id, member, payment, panel) {
+    var name = member ? member.name : id;
+    var reason = el("textarea", { id: "manage-reason", maxlength: "100", placeholder: "例如：登記錯誤、退費" });
+    reason.value = panel.reason;
+    reason.disabled = Boolean(panel.busy);
+    reason.addEventListener("input", function () { panel.reason = reason.value; });
+    return panelForm(panel, [
+      el("p", { class: "borrow-panel-text", text: "將 " + name + " 改為未繳費？" }),
+      el("p", { class: "collect-manage-note", text: "這筆繳費紀錄會標示為「作廢」並保留在試算表，之後可以重新收款。" }),
+      el("label", { class: "borrow-panel-field", for: "manage-reason" }, [el("span", { text: "原因（必填）" }), reason]),
+      panelButtons(panel, "確認改為未繳費", true)
+    ], function () {
+      var why = panel.reason.trim();
+      if (!why) { panel.error = "請填寫原因。"; render(); result.querySelector("#manage-reason").focus(); return; }
+      panel.busy = true; panel.error = ""; render();
+      api({ action: "void", id: id, receipt: (payment && payment.receipt) || "", reason: why }).then(function (res) {
+        if (!res.ok) throw new Error(res.error);
+        delete state.paid[id];
+        state.panel = null;
+        render();
+        loadToday();
+        toast({ kind: "info", text: name + " 已改為未繳費", sub: "原繳費紀錄已作廢", timeout: 6 });
+      }).catch(function (err) {
+        panel.busy = false;
+        panel.error = err.handled ? "" : "處理失敗：" + err.message;
+        render();
+      });
+    });
   }
 
   function newMemberCard(id) {
@@ -607,7 +732,7 @@
         if (reason === null) return;
         if (!reason.trim()) { alert("要填寫原因才能作廢。"); return; }
         voidButton.disabled = true;
-        api({ action: "void", receipt: item.receipt, reason: reason.trim() }).then(function (res) {
+        api({ action: "void", id: item.id, receipt: item.receipt, reason: reason.trim() }).then(function (res) {
           if (!res.ok) throw new Error(res.error);
           if (state.paid[item.id] && state.paid[item.id].receipt === item.receipt) delete state.paid[item.id];
           render();
