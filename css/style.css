@@ -2476,7 +2476,7 @@ html:has(.sub-nav) { scroll-padding-top: 150px; }
   font-variant-numeric: tabular-nums;
 }
 .borrow-tag.is-officer { background: var(--gold); color: var(--navy); }
-.borrow-who-email { overflow-wrap: anywhere; }
+.borrow-who-email { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .borrow-switch { flex: none; min-height: 44px; }
 .vote-tools { display: flex; justify-content: flex-end; margin-top: 8px; }
 .vote-tools .text-button { min-height: 44px; }
@@ -2565,6 +2565,13 @@ html:has(.sub-nav) { scroll-padding-top: 150px; }
 .borrow-rules { padding: 20px 24px; background: var(--mist); border-left: 4px solid var(--red); }
 
 .borrow-rules h2 { color: var(--navy); font-size: 20px; font-weight: 900; }
+
+.borrow-rules summary { display: flex; align-items: center; justify-content: space-between; min-height: 32px; cursor: pointer; list-style: none; }
+.borrow-rules summary::-webkit-details-marker { display: none; }
+.borrow-rules summary::after { content: "收合"; color: var(--muted); font-size: 14px; font-weight: 700; }
+.borrow-rules:not([open]) summary::after { content: "展開"; }
+.borrow-rules:not([open]) { padding-top: 14px; padding-bottom: 14px; }
+.borrow-rules summary:focus-visible { outline: 2px solid var(--navy); outline-offset: 4px; }
 
 .borrow-rules ol { margin: 8px 0 0; padding-left: 1.4em; }
 
@@ -2705,6 +2712,35 @@ html:has(.sub-nav) { scroll-padding-top: 150px; }
 .borrow-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--rule); }
 
 .borrow-actions .button { min-height: 44px; border: 0; font-family: inherit; cursor: pointer; }
+
+/* 申請狀態顏色：等待＝黃、核准＝綠、借出＝深藍、退回＝紅、結束＝灰 */
+.vote-chip.is-approved { background: #e4f1e8; color: #1f5a37; }
+.vote-chip.is-lent { background: var(--navy); color: var(--white); }
+.vote-chip.is-rejected { background: #fbe9ea; color: var(--red); }
+
+/* 篩選件數 */
+.borrow-count { display: inline-block; min-width: 22px; margin-left: 6px; padding: 0 6px; background: var(--rule); color: var(--navy); font-size: 13px; line-height: 20px; text-align: center; border-radius: 10px; }
+.borrow-count.is-alert { background: var(--red); color: var(--white); }
+.choices input:checked + span .borrow-count { background: rgba(255, 255, 255, .25); color: inherit; }
+
+/* 卡片內確認面板 */
+.borrow-panel { width: 100%; }
+.borrow-panel-text { margin: 0; color: var(--navy); font-weight: 700; }
+.borrow-panel-field { display: block; margin-top: 10px; }
+.borrow-panel-field span { display: block; margin-bottom: 4px; color: var(--muted); font-size: 14px; font-weight: 700; }
+.borrow-panel-field textarea { width: 100%; min-height: 64px; padding: 10px 12px; border: 1px solid var(--rule); font: inherit; font-size: 16px; resize: vertical; }
+.borrow-panel-field textarea:focus { outline: 2px solid var(--navy); outline-offset: 0; border-color: var(--navy); }
+.borrow-panel .field-error { margin-top: 6px; }
+.borrow-panel-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+.borrow-panel-actions .button { min-height: 44px; border: 0; font-family: inherit; cursor: pointer; }
+.borrow-panel-actions .text-button { min-height: 44px; padding: 0 12px; }
+.button-red { background: var(--red); color: var(--white); }
+.borrow-panel-actions .button.is-busy { display: inline-flex; align-items: center; gap: 8px; }
+.borrow-panel-actions .button.is-busy::before {
+  content: ""; width: 16px; height: 16px;
+  border: 2px solid rgba(255, 255, 255, .45); border-top-color: #fff; border-radius: 50%;
+  animation: borrow-spin .8s linear infinite;
+}
 
 /* 處理中：卡片變淡、按鈕顯示轉圈，避免重複點擊。 */
 .borrow-card { transition: opacity .2s ease; }
